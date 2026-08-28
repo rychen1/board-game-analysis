@@ -1,4 +1,21 @@
-"""Computational analysis of game properties.
+"""Specifications for future computational analysis. No engine lives here."""
 
-This package is a placeholder. Measurement implementations will be added later.
-"""
+from board_game_analysis.analysis.spec import (
+    EvidenceLevel,
+    MeasurementRole,
+    MeasurementScope,
+    MeasurementSpec,
+    MeasurementStatus,
+    measurement_catalog,
+    spec_by_id,
+)
+
+__all__ = [
+    "EvidenceLevel",
+    "MeasurementRole",
+    "MeasurementScope",
+    "MeasurementSpec",
+    "MeasurementStatus",
+    "measurement_catalog",
+    "spec_by_id",
+]

@@ -77,6 +77,25 @@ Design notes, vocabulary, and known limits: [docs/ontology.md](docs/ontology.md)
 Manually authored situations live in `tests/fixtures/games/`. They are
 test cases for the representation, not an ingestion corpus.
 
+## Analysis specification v0
+
+Proposed measurements, evidence levels, and research questions:
+[docs/analysis.md](docs/analysis.md).
+
+Typed metric names live in `board_game_analysis.analysis` as
+`MeasurementSpec` entries. There is no analysis engine and no computed
+corpus scores.
+
+## Ingestion v0
+
+BoardGameGeek XML API2 metadata only. Raw XML is archived, then normalized
+to `Game`. Live calls need `BGG_TOKEN`. Details:
+[docs/ingestion.md](docs/ingestion.md).
+
+```bash
+uv run board-game-ingest 13
+```
+
 ## Setup
 
 Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).

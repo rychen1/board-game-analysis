@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
+    <item type="boardgame" id="13">
+        <name type="primary" sortindex="1" value="CATAN" />
+        <name type="alternate" sortindex="1" value="Settlers of Catan" />
+        <yearpublished value="1995" />
+        <minplayers value="3" />
+        <maxplayers value="4" />
+        <playingtime value="120" />
+        <minplaytime value="60" />
+        <maxplaytime value="120" />
+        <minage value="10" />
+        <link type="boardgamecategory" id="1021" value="Economic" />
+        <link type="boardgamecategory" id="1026" value="Negotiation" />
+        <link type="boardgamemechanic" id="2072" value="Dice Rolling" />
+        <link type="boardgamemechanic" id="2081" value="Network and Route Building" />
+        <link type="boardgamedesigner" id="11" value="Klaus Teuber" />
+        <link type="boardgamepublisher" id="29" value="KOSMOS" />
+        <link type="boardgamepublisher" id="3" value="Catan Studio" />
+        <statistics page="1">
+            <ratings>
+                <usersrated value="128000" />
+                <average value="7.135" />
+                <bayesaverage value="6.93" />
+                <numweights value="8000" />
+                <averageweight value="2.29" />
+            </ratings>
+        </statistics>
+    </item>
+</items>

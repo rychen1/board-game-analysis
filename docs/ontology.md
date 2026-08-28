@@ -167,3 +167,6 @@ same `GameState`, it is not sufficient for this project.
 The success criterion for v0 is narrower: fundamentally different
 information and decision structures can be expressed with the same
 models, without a per-game special case in the type system.
+
+Proposed measurements on top of this ontology:
+[analysis.md](analysis.md).

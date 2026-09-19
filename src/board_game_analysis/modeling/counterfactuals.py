@@ -45,14 +45,19 @@ from board_game_analysis.modeling.examples import (
     PairExample,
     action_set_entity_id,
     examples_from_situations,
+    situation_id_for,
+    state_entity_id,
 )
 from board_game_analysis.modeling.interventions import (
     INTERVENTION_FAMILY,
     Intervention,
+    InterventionSummary,
     Origin,
     apply_intervention,
+    first_item_id,
     hide_information,
     identity_intervention,
+    intervention_summaries_for_observations,
     reveal_information,
     scalar_information_delta,
     substitute_action,
@@ -127,6 +132,7 @@ class CounterfactualEvaluation(_FrozenModel):
 class CounterfactualRun(_FrozenModel):
     evaluation: CounterfactualEvaluation
     transitions: tuple[CounterfactualTransition, ...]
+    intervention_summaries: tuple[InterventionSummary, ...]
     rollout: RolloutResult | None
     counterfactual_payload_id: str
     model_payload_id: str
@@ -153,8 +159,12 @@ def counterfactual_transition(
         raise KeyError("alternative action_ids are required")
     if not intervention.factual_action_ids:
         raise KeyError("factual action_ids are required")
-    alt_entity = action_set_entity_id(pair.game_id, intervention.alternative_action_ids)
-    fact_entity = action_set_entity_id(pair.game_id, intervention.factual_action_ids)
+    alt_entity = action_set_entity_id(
+        pair.situation_id, intervention.alternative_action_ids
+    )
+    fact_entity = action_set_entity_id(
+        pair.situation_id, intervention.factual_action_ids
+    )
     if alt_entity not in z_actions.entity_ids:
         raise KeyError(f"no encoded alternative action {alt_entity!r}")
     if fact_entity not in z_actions.entity_ids:
@@ -207,8 +217,9 @@ def encode_action_set(
             resolved.append(by_id[action_id])
         except KeyError as exc:
             raise KeyError(f"no action {action_id}") from exc
+    situation_id = situation_id_for(situation)
     example = ActionExample(
-        entity_id=action_set_entity_id(situation.game.id, action_ids),
+        entity_id=action_set_entity_id(situation_id, action_ids),
         game_id=situation.game.id,
         pair_entity_id=pair_entity_id,
         action_ids=tuple(action_ids),
@@ -362,13 +373,14 @@ def run_counterfactual_experiment(
         for example in examples.observations
         if example.game_id in set(test_games)
     ]
+    intervention_summaries = intervention_summaries_for_observations(test_obs)
     for example in test_obs:
-        item_id = _first_item_id(example)
+        item_id = first_item_id(example)
         if item_id is None:
             continue
         identity = identity_intervention(
             game_id=example.game_id,
-            situation_id=f"{example.game_id}:{example.state_id}",
+            situation_id=example.situation_id,
             source_state_id=example.state_id,
             observer_id=example.observer_id,
         )
@@ -378,7 +390,7 @@ def run_counterfactual_experiment(
             n_identity_ok += 1
         hide = hide_information(
             game_id=example.game_id,
-            situation_id=f"{example.game_id}:{example.state_id}",
+            situation_id=example.situation_id,
             source_state_id=example.state_id,
             observer_id=example.observer_id,
             item_id=item_id,
@@ -392,7 +404,7 @@ def run_counterfactual_experiment(
             n_hide_ok += 1
         reveal = reveal_information(
             game_id=example.game_id,
-            situation_id=f"{example.game_id}:{example.state_id}",
+            situation_id=example.situation_id,
             source_state_id=example.state_id,
             observer_id=example.observer_id,
             item_id=item_id,
@@ -490,6 +502,7 @@ def run_counterfactual_experiment(
     )
     return CounterfactualRun(
         evaluation=evaluation,
+        intervention_summaries=intervention_summaries,
         transitions=tuple(transitions),
         rollout=rollout_result,
         counterfactual_payload_id=cf_pid,
@@ -514,7 +527,9 @@ def _maybe_rollout(
         if not sequence.steps:
             continue
         table = sequence_table_from_examples([sequence])
-        start_id = f"{sequence.game_id}/state/{sequence.steps[0].from_state_id}"
+        start_id = state_entity_id(
+            sequence.situation_id, sequence.steps[0].from_state_id
+        )
         if start_id not in z_states.entity_ids:
             continue
         start = select_entities(z_states, [start_id])
@@ -526,7 +541,7 @@ def _maybe_rollout(
         )
         cond_ids = [step.pair_entity_id for step in sequence.steps]
         action_ids = [
-            action_set_entity_id(sequence.game_id, step.action_ids)
+            action_set_entity_id(sequence.situation_id, step.action_ids)
             for step in sequence.steps
             if step.action_ids
         ]
@@ -591,14 +606,6 @@ def _merge_reprs(tables: Sequence[RepresentationTable]) -> RepresentationTable:
         dim=dim,
         source_payload_ids=tuple(sources),
     )
-
-
-def _first_item_id(example: ObservationExample) -> str | None:
-    for item in example.items:
-        item_id = item.get("id")
-        if isinstance(item_id, str) and item_id:
-            return item_id
-    return None
 
 
 def _same_repr(

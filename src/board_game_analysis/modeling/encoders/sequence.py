@@ -92,7 +92,7 @@ class LastStatePredictor:
         z_states: RepresentationTable,
     ) -> RepresentationTable:
         last_ids = [
-            state_entity_ids(prefix.game_id, prefix.state_ids)[-1]
+            state_entity_ids(prefix.situation_id, prefix.state_ids)[-1]
             for prefix in prefixes
         ]
         selected = select_entities(z_states, last_ids)
@@ -211,7 +211,7 @@ def encode_trajectory_summaries(
             raise ValueError(f"{sequence.entity_id}: empty sequence")
         state_vecs = [
             _lookup(z_states, entity_id)
-            for entity_id in state_entity_ids(sequence.game_id, sequence.event_ids)
+            for entity_id in state_entity_ids(sequence.situation_id, sequence.event_ids)
         ]
         action_vecs = _observed_action_vectors(sequence, z_actions)
         first = state_vecs[0]
@@ -255,7 +255,7 @@ def prefix_event_tables(
     sources: list[str] = []
     zero_action = tuple(0.0 for _ in range(z_actions.dim))
     for prefix in prefixes:
-        state_ids = state_entity_ids(prefix.game_id, prefix.state_ids)
+        state_ids = state_entity_ids(prefix.situation_id, prefix.state_ids)
         for index, entity_id in enumerate(state_ids):
             state_vec = _lookup(z_states, entity_id)
             action_ids = (
@@ -265,7 +265,7 @@ def prefix_event_tables(
             )
             if action_ids:
                 action_vec = _lookup(
-                    z_actions, action_set_entity_id(prefix.game_id, action_ids)
+                    z_actions, action_set_entity_id(prefix.situation_id, action_ids)
                 )
             else:
                 action_vec = zero_action
@@ -285,7 +285,7 @@ def target_states_for_prefixes(
 ) -> RepresentationTable:
     """Encoded actual to-states. Missing targets raise."""
     target_ids = [
-        state_entity_ids(prefix.game_id, (prefix.target_state_id,))[0]
+        state_entity_ids(prefix.situation_id, (prefix.target_state_id,))[0]
         for prefix in prefixes
     ]
     selected = select_entities(z_states, target_ids)
@@ -305,11 +305,11 @@ def last_step_pairs(
     action_ids: list[str] = []
     pair_ids: list[str] = []
     for prefix in prefixes:
-        from_ids.append(state_entity_ids(prefix.game_id, prefix.state_ids)[-1])
+        from_ids.append(state_entity_ids(prefix.situation_id, prefix.state_ids)[-1])
         actions = prefix.action_id_groups[-1] if prefix.action_id_groups else ()
         if not actions:
             raise KeyError(f"{prefix.entity_id}: no observed action for transition")
-        action_ids.append(action_set_entity_id(prefix.game_id, actions))
+        action_ids.append(action_set_entity_id(prefix.situation_id, actions))
         pair_ids.append(prefix.entity_id)
     return tuple(from_ids), tuple(action_ids), tuple(pair_ids)
 
@@ -322,7 +322,9 @@ def _observed_action_vectors(
         if not step.action_ids:
             continue
         vectors.append(
-            _lookup(z_actions, action_set_entity_id(sequence.game_id, step.action_ids))
+            _lookup(
+                z_actions, action_set_entity_id(sequence.situation_id, step.action_ids)
+            )
         )
     return vectors
 

@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from ds_platform import RunContext, Store
 from ds_platform.modeling.evaluate import EvaluationReport
-from ds_platform.modeling.geometry import knn, novelty_scores, pairwise_distances
+from ds_platform.modeling.geometry import knn, pairwise_distances
 from ds_platform.modeling.records import (
     put_evaluation_artifact,
     put_feature_dataset,
@@ -32,9 +32,11 @@ from board_game_analysis.modeling.design_space import (
     SCHEMA_VERSION,
     FeatureSchema,
     GameRepresentation,
+    Phase6Context,
     PlayLayer,
     SituationRepresentation,
     ViewName,
+    build_phase6_context,
     build_play_layer,
     default_feature_schema,
     external_metadata,
@@ -75,20 +77,25 @@ class FamilyStandardizer(_FrozenModel):
     zero_variance_columns: tuple[str, ...]
     train_entity_ids: tuple[str, ...]
     column_names: tuple[str, ...]
+    value_column_indexes: tuple[tuple[int, tuple[int, ...]], ...] = ()
 
     def transform(self, table: RepresentationTable) -> RepresentationTable:
         if table.dim != len(self.means):
             raise ValueError("table dim does not match fitted normalizer")
-        vectors = tuple(
-            tuple(
+        vectors: list[tuple[float, ...]] = []
+        for vector in table.vectors:
+            scaled = [
                 (value - mean) / std
                 for value, mean, std in zip(vector, self.means, self.stds, strict=True)
-            )
-            for vector in table.vectors
-        )
+            ]
+            for present_idx, value_indexes in self.value_column_indexes:
+                if vector[present_idx] == 0.0:
+                    for index in value_indexes:
+                        scaled[index] = 0.0
+            vectors.append(tuple(scaled))
         return RepresentationTable(
             entity_ids=table.entity_ids,
-            vectors=vectors,
+            vectors=tuple(vectors),
             dim=table.dim,
             source_payload_ids=table.source_payload_ids,
         )
@@ -189,9 +196,34 @@ class ClusterAssignment(_FrozenModel):
     family: str
 
 
+class DesignSpaceManifest(_FrozenModel):
+    """Reproducibility recipe persisted with the design-space model artifact."""
+
+    family: str
+    feature_schema: FeatureSchema
+    metric: DistanceMetric
+    train_game_ids: tuple[str, ...]
+    test_game_ids: tuple[str, ...]
+    situation_ids: tuple[str, ...]
+    game_ids: tuple[str, ...]
+    encoder_dim: int
+    encoder_family: str
+    n_components: int | None = None
+    n_clusters: int | None = None
+    novelty_ks: tuple[int, ...] = ()
+    cluster_seed: int | None = None
+    cluster_family: str = "kmeans-v0"
+    phase6_logical_keys: tuple[str, ...] = ()
+    situation_payload_id: str | None = None
+    game_payload_id: str | None = None
+    normalizer_payload_id: str | None = None
+    projection_payload_id: str | None = None
+
+
 class DesignSpace(_FrozenModel):
     feature_schema: FeatureSchema
     layer: PlayLayer
+    phase6: Phase6Context
     situations: tuple[SituationRepresentation, ...]
     games: tuple[GameRepresentation, ...]
     canonical_situations: RepresentationTable
@@ -275,6 +307,7 @@ def fit_standardizer(
         zero_variance_columns=tuple(zero),
         train_entity_ids=tuple(train_ids),
         column_names=tuple(column_names),
+        value_column_indexes=_family_value_column_indexes(column_names),
     )
 
 
@@ -322,7 +355,8 @@ def build_design_space(
         raise ValueError("train and test game ids must be disjoint")
     schema = default_feature_schema()
     layer = build_play_layer(situations, dim=dim)
-    situation_reps = represent_situations(layer, schema)
+    phase6 = build_phase6_context(layer)
+    situation_reps = represent_situations(layer, schema, phase6=phase6)
     game_reps = represent_games(situation_reps)
     games_table = game_table(game_reps)
     sits_table = situation_table(situation_reps)
@@ -346,6 +380,7 @@ def build_design_space(
     return DesignSpace(
         feature_schema=schema,
         layer=layer,
+        phase6=phase6,
         situations=situation_reps,
         games=game_reps,
         canonical_situations=sits_table,
@@ -471,25 +506,35 @@ def novelty_table(
     view: ViewName = "normalized",
     metric: DistanceMetric | None = None,
 ) -> tuple[NoveltyScore, ...]:
+    """Score games against training neighbors only. Test games are queries."""
     table = view_table(space, level="game", view=view)
     chosen = metric or space.metric
-    n_entities = len(table.entity_ids)
-    if n_entities < 2:
-        raise ValueError("novelty requires at least two games")
+    if len(space.train_game_ids) < 2:
+        raise ValueError("novelty requires at least two training games")
+    reference = select_entities(table, space.train_game_ids)
     scores: list[NoveltyScore] = []
-    nearest = novelty_scores(table, k=1, metric=chosen)
-    nearest_by_id = {
-        entity_id: _as_float(row[0])
-        for entity_id, row in zip(nearest.entity_ids, nearest.values, strict=True)
-    }
+    nearest_by_id: dict[str, float] = {}
+    for entity_id in table.entity_ids:
+        nearest_by_id[entity_id] = _mean_knn_distance(
+            table,
+            entity_id,
+            k=1,
+            reference=reference,
+            metric=chosen,
+        )
     for k in ks:
         if k < 1:
             raise ValueError("k must be a positive integer")
-        if k >= n_entities:
+        if k >= len(reference.entity_ids):
             continue
-        table_k = novelty_scores(table, k=k, metric=chosen)
-        for entity_id, row in zip(table_k.entity_ids, table_k.values, strict=True):
-            value = _as_float(row[0])
+        for entity_id in table.entity_ids:
+            value = _mean_knn_distance(
+                table,
+                entity_id,
+                k=k,
+                reference=reference,
+                metric=chosen,
+            )
             scores.append(
                 NoveltyScore(
                     entity_id=entity_id,
@@ -510,8 +555,9 @@ def cluster_games(
     view: ViewName = "normalized",
 ) -> tuple[ClusterAssignment, ...]:
     table = view_table(space, level="game", view=view)
+    train_table = select_entities(table, space.train_game_ids)
     clusterer = DeterministicKMeans(n_clusters, seed=seed)
-    clusterer.fit(table)
+    clusterer.fit(train_table)
     labels = clusterer.predict(table)
     return tuple(
         ClusterAssignment(
@@ -642,27 +688,11 @@ def run_design_space_experiment(
         logical_key=GAME_REPR_LOGICAL_KEY,
         created_at=created_at,
     )
-    model_pid, _model_rid = put_model_artifact(
-        store,
-        pickle.dumps(
-            {
-                "family": DESIGN_SPACE_FAMILY,
-                "schema": space.feature_schema,
-                "metric": metric,
-                "train_game_ids": space.train_game_ids,
-            }
-        ),
-        run=run_with_hash,
-        inputs=[game_pid, sit_pid],
-        media_type="application/octet-stream",
-        logical_key=DESIGN_SPACE_MODEL_LOGICAL_KEY,
-        created_at=created_at,
-    )
     norm_pid, _norm_rid = put_model_artifact(
         store,
         pickle.dumps(space.normalizer),
         run=run_with_hash,
-        inputs=[model_pid],
+        inputs=[game_pid, sit_pid],
         media_type="application/octet-stream",
         logical_key=NORMALIZER_LOGICAL_KEY,
         created_at=created_at,
@@ -678,6 +708,39 @@ def run_design_space_experiment(
             logical_key=PROJECTION_LOGICAL_KEY,
             created_at=created_at,
         )
+    manifest = DesignSpaceManifest(
+        family=DESIGN_SPACE_FAMILY,
+        feature_schema=space.feature_schema,
+        metric=metric,
+        train_game_ids=space.train_game_ids,
+        test_game_ids=space.test_game_ids,
+        situation_ids=tuple(sorted(item.situation_id for item in space.situations)),
+        game_ids=tuple(sorted(item.game_id for item in space.games)),
+        encoder_dim=space.layer.encoder_dim,
+        encoder_family=space.layer.encoder_family,
+        n_components=n_components,
+        n_clusters=n_clusters,
+        novelty_ks=tuple(novelty_ks),
+        cluster_seed=seed,
+        cluster_family=DeterministicKMeans.family,
+        phase6_logical_keys=space.phase6.source_logical_keys,
+        situation_payload_id=sit_pid,
+        game_payload_id=game_pid,
+        normalizer_payload_id=norm_pid,
+        projection_payload_id=projection_pid,
+    )
+    model_inputs = [sit_pid, game_pid, norm_pid]
+    if projection_pid is not None:
+        model_inputs.append(projection_pid)
+    model_pid, _model_rid = put_model_artifact(
+        store,
+        pickle.dumps(manifest),
+        run=run_with_hash,
+        inputs=model_inputs,
+        media_type="application/octet-stream",
+        logical_key=DESIGN_SPACE_MODEL_LOGICAL_KEY,
+        created_at=created_at,
+    )
     novelty_pid, _nov_rid = put_evaluation_artifact(
         store,
         evaluation.novelty,
@@ -841,6 +904,57 @@ def _update_centroids(
             continue
         updated.append(_mean_vector(members))
     return updated
+
+
+def _family_value_column_indexes(
+    column_names: Sequence[str],
+) -> tuple[tuple[int, tuple[int, ...]], ...]:
+    slices: list[tuple[int, tuple[int, ...]]] = []
+    index = 0
+    while index < len(column_names):
+        present_idx = index
+        index += 1
+        prefix = column_names[present_idx].rsplit("__", 1)[0]
+        value_indexes: list[int] = []
+        while index < len(column_names):
+            name = column_names[index]
+            if name.endswith("__present"):
+                break
+            if name.startswith(f"{prefix}__"):
+                value_indexes.append(index)
+                index += 1
+                continue
+            break
+        slices.append((present_idx, tuple(value_indexes)))
+    return tuple(slices)
+
+
+def _mean_knn_distance(
+    table: RepresentationTable,
+    entity_id: str,
+    *,
+    k: int,
+    reference: RepresentationTable,
+    metric: DistanceMetric,
+) -> float:
+    index = {item: i for i, item in enumerate(table.entity_ids)}
+    try:
+        query = table.vectors[index[entity_id]]
+    except KeyError as exc:
+        raise KeyError(f"no entity {entity_id!r}") from exc
+    ranked = sorted(
+        (
+            (vector_distance(query, vector, metric=metric), ref_id)
+            for ref_id, vector in zip(
+                reference.entity_ids, reference.vectors, strict=True
+            )
+            if ref_id != entity_id
+        ),
+        key=lambda item: (item[0], item[1]),
+    )
+    if len(ranked) < k:
+        raise ValueError("not enough reference neighbors")
+    return sum(distance for distance, _ref_id in ranked[:k]) / float(k)
 
 
 def _as_float(value: object) -> float:

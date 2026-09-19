@@ -15,6 +15,7 @@ from board_game_analysis.domain import (
     PlaySituation,
     Visibility,
 )
+from board_game_analysis.modeling.examples import situation_id_for
 
 MEASURE_METHOD = "ontology-v0-naive"
 MEASURE_VERSION = "ontology-v0"
@@ -370,7 +371,7 @@ def _legal_action_type_count(
             name="legal_action_type_count",
             value=float(len(situation.definition.legal_action_types)),
             scope=MeasurementScope.GAME,
-            scope_key=situation.game.id,
+            scope_key=situation_id_for(situation),
             unit="action_types",
         )
     ]
@@ -480,7 +481,7 @@ def _structural_interaction(
                 "labels": labels,
             },
             scope=MeasurementScope.GAME,
-            scope_key=situation.game.id,
+            scope_key=situation_id_for(situation),
         )
     ]
 
@@ -497,8 +498,9 @@ def _measurement(
     unit: str | None = None,
 ) -> DerivedMeasurement:
     catalog = spec_by_id(name)
+    situation_id = situation_id_for(situation)
     return DerivedMeasurement(
-        id=f"{situation.game.id}:{name}:{scope_key}",
+        id=f"{situation_id}:{name}:{scope_key}",
         game_id=situation.game.id,
         name=name,
         value=value,

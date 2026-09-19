@@ -237,6 +237,28 @@ def higher_order_pairs(
     return tuple(pairs)
 
 
+def count_asymmetric_pairs(pairs: Sequence[HigherOrderPerspective]) -> int:
+    """Count unordered observer pairs whose inverse perspective differs."""
+    inverses = {
+        (pair.state_id, pair.focal_observer_id, pair.target_observer_id): pair
+        for pair in pairs
+    }
+    seen: set[tuple[str, str, str]] = set()
+    count = 0
+    for pair in pairs:
+        left_id, right_id = sorted((pair.focal_observer_id, pair.target_observer_id))
+        bucket = (pair.state_id, left_id, right_id)
+        if bucket in seen:
+            continue
+        other = inverses.get(
+            (pair.state_id, pair.target_observer_id, pair.focal_observer_id)
+        )
+        if other is not None and other.vector != pair.vector:
+            count += 1
+            seen.add(bucket)
+    return count
+
+
 def higher_order_table(
     pairs: Sequence[HigherOrderPerspective],
 ) -> RepresentationTable:
@@ -345,12 +367,7 @@ def run_higher_order_experiment(
 ) -> HigherOrderRun:
     pairs = higher_order_pairs(observations, z_obs)
     table = higher_order_table(pairs)
-    n_asymmetric = sum(
-        1
-        for pair in pairs
-        if _inverse_vector(pairs, pair) is not None
-        and _inverse_vector(pairs, pair) != pair.vector
-    )
+    n_asymmetric = count_asymmetric_pairs(pairs)
     n_paths = 0
     persp = perspective_table_from_observations(observations, z_obs)
     composer = OrderedConcatComposer()

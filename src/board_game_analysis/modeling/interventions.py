@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
@@ -11,7 +10,11 @@ from ds_platform.modeling._spec_json import spec_canonical_json_bytes
 from pydantic import BaseModel, ConfigDict, Field
 
 from board_game_analysis.domain import Visibility
-from board_game_analysis.modeling.examples import ObservationExample
+from board_game_analysis.modeling.examples import (
+    ObservationExample,
+    _freeze_mapping,
+    _FrozenDict,
+)
 
 Operation = Literal[
     "identity",
@@ -84,6 +87,69 @@ class InformationScalars(_FrozenModel):
     volume: float
     visibility: float
     hidden: float
+
+
+class InterventionSummary(_FrozenModel):
+    """Phase 6 hide/reveal scalars for one observation item."""
+
+    source_entity_id: str
+    situation_id: str
+    hide_visibility_delta: float
+    reveal_visibility_delta: float
+
+
+def first_item_id(example: ObservationExample) -> str | None:
+    for item in example.items:
+        item_id = item.get("id")
+        if isinstance(item_id, str) and item_id:
+            return item_id
+    return None
+
+
+def intervention_summaries_for_observations(
+    observations: Sequence[ObservationExample],
+) -> tuple[InterventionSummary, ...]:
+    """Hide/reveal probes shared by Phase 6 evaluation and Phase 7 features."""
+    summaries: list[InterventionSummary] = []
+    for example in observations:
+        item_id = first_item_id(example)
+        if item_id is None:
+            continue
+        hide = hide_information(
+            game_id=example.game_id,
+            situation_id=example.situation_id,
+            source_state_id=example.state_id,
+            observer_id=example.observer_id,
+            item_id=item_id,
+        )
+        hidden = apply_intervention(example, hide)
+        if hidden.result_observation is None:
+            continue
+        hide_delta = scalar_information_delta(
+            example, hidden.result_observation
+        ).visibility
+        reveal = reveal_information(
+            game_id=example.game_id,
+            situation_id=example.situation_id,
+            source_state_id=example.state_id,
+            observer_id=example.observer_id,
+            item_id=item_id,
+        )
+        revealed = apply_intervention(example, reveal)
+        if revealed.result_observation is None:
+            continue
+        reveal_delta = scalar_information_delta(
+            example, revealed.result_observation
+        ).visibility
+        summaries.append(
+            InterventionSummary(
+                source_entity_id=example.entity_id,
+                situation_id=example.situation_id,
+                hide_visibility_delta=hide_delta,
+                reveal_visibility_delta=reveal_delta,
+            )
+        )
+    return tuple(summaries)
 
 
 def identity_intervention(
@@ -290,15 +356,18 @@ def _set_item(
     item_id = intervention.item_id
     if not item_id:
         raise ValueError("item_id is required")
-    items: list[dict[str, Any]] = []
+    items: list[_FrozenDict] = []
     found = False
     for item in source.items:
-        copied = _copy_item(item)
+        copied = dict(item)
+        payload = copied.get("payload")
+        if isinstance(payload, Mapping):
+            copied["payload"] = dict(payload)
         if copied.get("id") == item_id:
             copied["visibility"] = visibility
             copied["content_known"] = content_known
             found = True
-        items.append(copied)
+        items.append(_freeze_mapping(copied))
     if not found:
         raise KeyError(f"no information item {item_id!r}")
     return source.model_copy(
@@ -351,5 +420,5 @@ def _result(
     )
 
 
-def _copy_item(item: Mapping[str, Any]) -> dict[str, Any]:
-    return copy.deepcopy(dict(item))
+def _copy_item(item: Mapping[str, Any]) -> _FrozenDict:
+    return _freeze_mapping(item)

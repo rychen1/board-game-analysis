@@ -15,6 +15,7 @@ from board_game_analysis.modeling.examples import (
     action_set_entity_id,
     examples_from_situation,
     examples_from_situations,
+    situation_id_for,
 )
 
 
@@ -61,12 +62,12 @@ def transition_pairs_from_situations(
     situations: Sequence[PlaySituation],
 ) -> TransitionPairBundle:
     pairs = examples_from_situations(situations).pairs
-    by_game = {situation.game.id: situation for situation in situations}
+    by_situation = {situation_id_for(situation): situation for situation in situations}
     kept: list[PairExample] = []
     actions: list[ActionExample] = []
     skipped: list[str] = []
     for pair in pairs:
-        situation = by_game[pair.game_id]
+        situation = by_situation[pair.situation_id]
         resolved = _actionable_pair(situation, pair)
         if isinstance(resolved, str):
             skipped.append(resolved)
@@ -129,7 +130,7 @@ def _actionable_pair(
     situation.state(pair.to_state_id)
     resolved = _actions_for(situation, pair.action_ids)
     return ActionExample(
-        entity_id=action_set_entity_id(pair.game_id, pair.action_ids),
+        entity_id=action_set_entity_id(pair.situation_id, pair.action_ids),
         game_id=pair.game_id,
         pair_entity_id=pair.entity_id,
         action_ids=pair.action_ids,

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import pickle
 from datetime import UTC, datetime
 
 import pytest
 from ds_platform import ArtifactKind, Environment, LocalStore, RunContext
 from ds_platform.modeling.geometry import novelty_scores
-from ds_platform.modeling.representations import RepresentationTable
+from ds_platform.modeling.representations import RepresentationTable, select_entities
 from ds_platform.modeling.spec import SplitSpec
 
 from board_game_analysis.domain import Mechanic
@@ -20,6 +21,7 @@ from board_game_analysis.modeling.design_geometry import (
     NOVELTY_EVAL_LOGICAL_KEY,
     PROJECTION_LOGICAL_KEY,
     SITUATION_REPR_LOGICAL_KEY,
+    DesignSpaceManifest,
     DeterministicKMeans,
     attach_external_metadata,
     between_game_dispersion,
@@ -325,8 +327,9 @@ def test_clustering_is_reproducible_and_configurable() -> None:
     other_k = cluster_games(space, 2, seed=0)
     assert {item.n_clusters for item in other_k} == {2}
     table = view_table(space, level="game", view="normalized")
+    train_table = select_entities(table, space.train_game_ids)
     clusterer = DeterministicKMeans(3, seed=0)
-    clusterer.fit(table)
+    clusterer.fit(train_table)
     assert clusterer.predict(table) == tuple(item.cluster for item in first)
     with pytest.raises(ValueError, match="not enough entities"):
         DeterministicKMeans(len(space.games) + 1).fit(table)
@@ -380,7 +383,19 @@ def test_run_persists_and_stays_game_safe(tmp_path) -> None:
     kinds = _kind_by_key(tmp_path)
     assert kinds.get(GAME_REPR_LOGICAL_KEY) == ArtifactKind.DATASET
     assert kinds.get(NORMALIZER_LOGICAL_KEY) == ArtifactKind.MODEL
-    situations = represent_situations(result.space.layer)
+    manifest = pickle.loads(store.get(result.model_payload_id))
+    assert isinstance(manifest, DesignSpaceManifest)
+    assert manifest.situation_ids == tuple(
+        sorted(item.situation_id for item in result.space.situations)
+    )
+    assert manifest.game_ids == tuple(
+        sorted(item.game_id for item in result.space.games)
+    )
+    assert manifest.encoder_dim == result.space.layer.encoder_dim
+    assert manifest.n_clusters == 3
+    assert manifest.cluster_seed == 0
+    assert manifest.normalizer_payload_id == result.normalizer_payload_id
+    situations = represent_situations(result.space.layer, phase6=result.space.phase6)
     assert [item.situation_id for item in situations] == [
         item.situation_id for item in result.space.situations
     ]

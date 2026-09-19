@@ -133,7 +133,8 @@ def test_hide_and_reveal_are_non_mutating() -> None:
     assert original_z.vectors == restored_z.vectors
     isolated = apply_intervention(source, hide)
     assert isolated.result_observation is not None
-    isolated.result_observation.items[0]["content_known"] = True
+    with pytest.raises(TypeError, match="immutable"):
+        isolated.result_observation.items[0]["content_known"] = True
     assert json.dumps(source.to_mapping()) == original
 
 
@@ -311,7 +312,14 @@ def test_rollout_is_bounded_and_predicted() -> None:
     z_states, z_actions, model = _fit_transition_model(situations)
     sequence = sequence_from_situation(situation).sequences[0]
     table = sequence_table_from_examples([sequence])
-    start_id = f"{sequence.game_id}/state/{sequence.steps[0].from_state_id}"
+    from board_game_analysis.modeling.examples import (
+        action_set_entity_id,
+        state_entity_id,
+    )
+
+    start_id = state_entity_id(
+        sequence.situation_id, sequence.steps[0].from_state_id
+    )
     start = select_entities(z_states, [start_id])
     start = RepresentationTable(
         entity_ids=(sequence.group_id,),
@@ -320,7 +328,7 @@ def test_rollout_is_bounded_and_predicted() -> None:
         source_payload_ids=start.source_payload_ids,
     )
     action_ids = [
-        f"{sequence.game_id}/actions/{'+'.join(step.action_ids)}"
+        action_set_entity_id(sequence.situation_id, step.action_ids)
         for step in sequence.steps
     ]
     selected = select_entities(z_actions, action_ids)
@@ -340,7 +348,8 @@ def test_rollout_is_bounded_and_predicted() -> None:
     assert two.n_steps == 2
     assert one.origin == "predicted"
     observed_states = {
-        f"{sequence.game_id}/state/{state_id}" for state_id in sequence.event_ids
+        state_entity_id(sequence.situation_id, state_id)
+        for state_id in sequence.event_ids
     }
     assert observed_states.isdisjoint(one.predicted.entity_ids)
     with pytest.raises(ValueError, match="max_steps"):

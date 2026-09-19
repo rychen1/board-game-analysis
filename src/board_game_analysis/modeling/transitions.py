@@ -332,7 +332,7 @@ def _mean_named(
         and item.game_id == pair.game_id
         and item.scope == "trajectory"
         and isinstance(item.value, (int, float))
-        and item.id.startswith(f"{pair.game_id}:{name}:{pair.transition_id}:")
+        and item.id.startswith(f"{pair.situation_id}:{name}:{pair.transition_id}:")
     ]
     if not values:
         return None

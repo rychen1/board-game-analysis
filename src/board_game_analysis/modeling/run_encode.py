@@ -43,11 +43,11 @@ OBS_MODEL_LOGICAL_KEY = "bga:model/obs-embedder:v0"
 STATE_MODEL_LOGICAL_KEY = "bga:model/state-embedder:v0"
 OBS_REPR_LOGICAL_KEY = "bga:repr/observations:v0"
 STATE_REPR_LOGICAL_KEY = "bga:repr/states:v0"
-PROBE_EVAL_LOGICAL_KEY = "bga:eval/obs-probes:v0"
+PROBE_EVAL_LOGICAL_KEY = "bga:evaluation/obs-probes:v0"
 ACTION_MODEL_LOGICAL_KEY = "bga:model/action-embedder:v0"
 ACTION_REPR_LOGICAL_KEY = "bga:repr/actions:v0"
 SEQUENCE_MODEL_LOGICAL_KEY = "bga:model/sequence-encoder:v0"
-SEQUENCE_REPR_LOGICAL_KEY = "bga:repr/sequences:v0"
+TRAJECTORY_REPR_LOGICAL_KEY = "bga:repr/trajectory-summaries:v0"
 
 
 class EncodingBundle(BaseModel):
@@ -126,7 +126,7 @@ def encode_sequences(
         run=run_with_hash,
         inputs=[],
         media_type="application/json",
-        logical_key=SEQUENCE_REPR_LOGICAL_KEY,
+        logical_key=TRAJECTORY_REPR_LOGICAL_KEY,
         created_at=created_at,
     )
     model_payload_id, _model_record_id = put_model_artifact(

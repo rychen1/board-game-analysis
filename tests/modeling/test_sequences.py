@@ -33,13 +33,14 @@ from board_game_analysis.modeling.measures import measure_situations
 from board_game_analysis.modeling.pairs import transition_pairs_from_situations
 from board_game_analysis.modeling.run_encode import (
     SEQUENCE_MODEL_LOGICAL_KEY,
-    SEQUENCE_REPR_LOGICAL_KEY,
+    TRAJECTORY_REPR_LOGICAL_KEY,
     encode_sequences,
 )
 from board_game_analysis.modeling.sequence_eval import (
     SEQUENCE_ENCODER_LOGICAL_KEY,
     SEQUENCE_EVAL_LOGICAL_KEY,
     SEQUENCE_PREDICTOR_LOGICAL_KEY,
+    SEQUENCE_REPR_LOGICAL_KEY,
     evaluate_sequences,
     run_sequence_experiment,
     sequence_scalar_table,
@@ -222,8 +223,11 @@ def test_prefix_summary_does_not_use_target_state() -> None:
     last_event = summary.vectors[0][event_dim : 2 * event_dim]
     last_state = last_event[:8]
     target = target_states_for_prefixes(z_states, [second]).vectors[0]
+    from board_game_analysis.modeling.examples import situation_id_for, state_entity_id
+
+    situation = situations[0]
     from_state = z_states.vectors[
-        z_states.entity_ids.index(f"telestrations/state/{S1}")
+        z_states.entity_ids.index(state_entity_id(situation_id_for(situation), S1))
     ]
     assert last_state == from_state
     assert last_state != target
@@ -434,7 +438,7 @@ def test_encode_sequences_writes_dataset_kind(tmp_path) -> None:
     encoded_ids = tuple(item.entity_id for item in bundle.sequences)
     assert encoded.table.entity_ids == encoded_ids
     kinds = _kind_by_key(tmp_path)
-    assert kinds.get(SEQUENCE_REPR_LOGICAL_KEY) == ArtifactKind.DATASET
+    assert kinds.get(TRAJECTORY_REPR_LOGICAL_KEY) == ArtifactKind.DATASET
 
 
 def test_each_fixture_with_transitions_runs_phase5_pipeline() -> None:

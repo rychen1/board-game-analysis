@@ -246,7 +246,7 @@ def _trajectory_from_chain(
             if observer_id not in observers:
                 observers.append(observer_id)
     first_transition = chain[0].transition_id
-    entity_id = trajectory_entity_id(game_id, first_transition)
+    entity_id = trajectory_entity_id(situation_id, first_transition)
     return SequenceExample(
         entity_id=entity_id,
         game_id=game_id,
@@ -374,9 +374,11 @@ def _step_source_id(sequence: SequenceExample, step: SequenceStep) -> str:
     )
 
 
-def state_entity_ids(game_id: str, state_ids: Sequence[str]) -> tuple[str, ...]:
-    return tuple(state_entity_id(game_id, state_id) for state_id in state_ids)
+def state_entity_ids(situation_id: str, state_ids: Sequence[str]) -> tuple[str, ...]:
+    return tuple(state_entity_id(situation_id, state_id) for state_id in state_ids)
 
 
-def pair_entity_ids(game_id: str, transition_ids: Sequence[str]) -> tuple[str, ...]:
-    return tuple(pair_entity_id(game_id, item) for item in transition_ids)
+def pair_entity_ids(
+    situation_id: str, transition_ids: Sequence[str]
+) -> tuple[str, ...]:
+    return tuple(pair_entity_id(situation_id, item) for item in transition_ids)

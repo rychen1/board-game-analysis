@@ -10,9 +10,10 @@ from ds_platform.modeling.representations import (
     RepresentationTable,
     vector_distance,
 )
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from board_game_analysis.domain import PlaySituation
+from board_game_analysis.modeling.counterfactuals import COUNTERFACTUAL_REPR_LOGICAL_KEY
 from board_game_analysis.modeling.encoders.action import ActionBagEmbedder
 from board_game_analysis.modeling.encoders.observation import ObservationBagEmbedder
 from board_game_analysis.modeling.encoders.state import StateBagEmbedder
@@ -22,13 +23,16 @@ from board_game_analysis.modeling.examples import (
     examples_from_situation,
     situation_id_for,
 )
-from board_game_analysis.modeling.higher_order import higher_order_pairs
+from board_game_analysis.modeling.higher_order import (
+    HIGHER_ORDER_REPR_LOGICAL_KEY,
+    HigherOrderPerspective,
+    count_asymmetric_pairs,
+    higher_order_pairs,
+)
 from board_game_analysis.modeling.interventions import (
-    apply_intervention,
-    hide_information,
+    InterventionSummary,
+    intervention_summaries_for_observations,
     observation_scalars,
-    reveal_information,
-    scalar_information_delta,
 )
 from board_game_analysis.modeling.pairs import (
     TransitionPairBundle,
@@ -148,8 +152,14 @@ class FeatureSchema(_FrozenModel):
 class FamilyBlock(_FrozenModel):
     name: str
     present: bool
-    values: dict[str, float] = Field(default_factory=dict)
+    values: tuple[tuple[str, float], ...] = ()
     source_entity_ids: tuple[str, ...] = ()
+
+    def value(self, column: str) -> float:
+        for key, item in self.values:
+            if key == column:
+                return item
+        raise KeyError(f"no column {column!r} in family {self.name!r}")
 
 
 class SituationRepresentation(_FrozenModel):
@@ -207,6 +217,50 @@ class PlayLayer(_FrozenModel):
     z_actions: RepresentationTable
     encoder_dim: int
     encoder_family: str
+
+
+class Phase6Context(_FrozenModel):
+    """Phase 6 tables consumed by Phase 7 intervention and hop families."""
+
+    higher_order_pairs: tuple[HigherOrderPerspective, ...] = ()
+    intervention_summaries: tuple[InterventionSummary, ...] = ()
+    source_logical_keys: tuple[str, ...] = ()
+
+
+def build_phase6_context(layer: PlayLayer) -> Phase6Context:
+    """Build the Phase 6 tables that Phase 7 feature families compose."""
+    pairs: list[HigherOrderPerspective] = []
+    summaries: list[InterventionSummary] = []
+    for bundle in layer.examples:
+        summaries.extend(intervention_summaries_for_observations(bundle.observations))
+        if len(bundle.observations) >= 2:
+            pairs.extend(higher_order_pairs(bundle.observations, layer.z_observations))
+    return Phase6Context(
+        higher_order_pairs=tuple(pairs),
+        intervention_summaries=tuple(summaries),
+        source_logical_keys=(
+            HIGHER_ORDER_REPR_LOGICAL_KEY,
+            COUNTERFACTUAL_REPR_LOGICAL_KEY,
+        ),
+    )
+
+
+def phase6_context_from_runs(
+    *,
+    higher_order_pairs: Sequence[HigherOrderPerspective] = (),
+    intervention_summaries: Sequence[InterventionSummary] = (),
+) -> Phase6Context:
+    """Compose Phase 7 features from persisted Phase 6 experiment outputs."""
+    keys: list[str] = []
+    if higher_order_pairs:
+        keys.append(HIGHER_ORDER_REPR_LOGICAL_KEY)
+    if intervention_summaries:
+        keys.append(COUNTERFACTUAL_REPR_LOGICAL_KEY)
+    return Phase6Context(
+        higher_order_pairs=tuple(higher_order_pairs),
+        intervention_summaries=tuple(intervention_summaries),
+        source_logical_keys=tuple(keys),
+    )
 
 
 def default_feature_schema() -> FeatureSchema:
@@ -286,26 +340,33 @@ def represent_situation(
     situation: PlaySituation,
     layer: PlayLayer,
     schema: FeatureSchema | None = None,
+    *,
+    phase6: Phase6Context | None = None,
 ) -> SituationRepresentation:
     chosen = schema or default_feature_schema()
+    resolved = phase6 or build_phase6_context(layer)
     index = _situation_index(layer, situation)
     examples = layer.examples[index]
     pairs = layer.pairs[index]
     sequences = layer.sequences[index]
     situation_id = situation_id_for(situation)
-    hop = _higher_order_block(examples, layer.z_observations, chosen)
+    hop = _higher_order_block_from_pairs(resolved.higher_order_pairs, examples, chosen)
     blocks = (
         _state_block(examples, layer.z_states, chosen),
         _perspective_block(examples, layer.z_observations, chosen),
         _action_block(situation, pairs, layer.z_actions, chosen),
         _sequence_block(sequences, chosen),
-        _intervention_block(examples, chosen),
+        _intervention_block_from_summaries(
+            resolved.intervention_summaries, situation_id, chosen
+        ),
         hop,
         _region_block(chosen, n_units=1, dispersion=0.0, spread=0.0),
     )
     vector = flatten_families(blocks, chosen)
     sources = _unique(
-        list(_source_ids(examples, pairs, sequences)) + list(hop.source_entity_ids)
+        list(_source_ids(examples, pairs, sequences))
+        + list(hop.source_entity_ids)
+        + list(resolved.source_logical_keys)
     )
     return SituationRepresentation(
         entity_id=situation_id,
@@ -320,11 +381,16 @@ def represent_situation(
 
 
 def represent_situations(
-    layer: PlayLayer, schema: FeatureSchema | None = None
+    layer: PlayLayer,
+    schema: FeatureSchema | None = None,
+    *,
+    phase6: Phase6Context | None = None,
 ) -> tuple[SituationRepresentation, ...]:
     chosen = schema or default_feature_schema()
+    resolved = phase6 or build_phase6_context(layer)
     return tuple(
-        represent_situation(situation, layer, chosen) for situation in layer.situations
+        represent_situation(situation, layer, chosen, phase6=resolved)
+        for situation in layer.situations
     )
 
 
@@ -402,7 +468,7 @@ def flatten_families(
             values.extend(0.0 for _ in family.columns)
             continue
         values.append(1.0)
-        values.extend(float(block.values[column]) for column in family.columns)
+        values.extend(block.value(column) for column in family.columns)
     return tuple(values)
 
 
@@ -567,94 +633,58 @@ def _sequence_block(bundle: SequenceBundle, schema: FeatureSchema) -> FamilyBloc
     )
 
 
-def _intervention_block(examples: ExampleBundle, schema: FeatureSchema) -> FamilyBlock:
+def _intervention_block_from_summaries(
+    summaries: Sequence[InterventionSummary],
+    situation_id: str,
+    schema: FeatureSchema,
+) -> FamilyBlock:
     columns = _columns(schema, "intervention")
-    hide_deltas: list[float] = []
-    reveal_deltas: list[float] = []
-    n_items = 0
-    sources: list[str] = []
-    for example in examples.observations:
-        item_id = _first_item_id(example)
-        if item_id is None:
-            continue
-        n_items += 1
-        hide = hide_information(
-            game_id=example.game_id,
-            situation_id=f"{example.game_id}:{example.state_id}",
-            source_state_id=example.state_id,
-            observer_id=example.observer_id,
-            item_id=item_id,
-        )
-        hidden = apply_intervention(example, hide)
-        if hidden.result_observation is None:
-            continue
-        hide_deltas.append(
-            scalar_information_delta(example, hidden.result_observation).visibility
-        )
-        reveal = reveal_information(
-            game_id=example.game_id,
-            situation_id=f"{example.game_id}:{example.state_id}",
-            source_state_id=example.state_id,
-            observer_id=example.observer_id,
-            item_id=item_id,
-        )
-        revealed = apply_intervention(example, reveal)
-        if revealed.result_observation is None:
-            continue
-        reveal_deltas.append(
-            scalar_information_delta(example, revealed.result_observation).visibility
-        )
-        sources.append(example.entity_id)
-    if n_items == 0:
+    scoped = [item for item in summaries if item.situation_id == situation_id]
+    if not scoped:
         return FamilyBlock(name="intervention", present=False)
     values = {
-        "n_items": float(n_items),
-        "mean_hide_visibility_delta": _mean(hide_deltas),
-        "mean_reveal_visibility_delta": _mean(reveal_deltas),
+        "n_items": float(len(scoped)),
+        "mean_hide_visibility_delta": _mean(
+            [item.hide_visibility_delta for item in scoped]
+        ),
+        "mean_reveal_visibility_delta": _mean(
+            [item.reveal_visibility_delta for item in scoped]
+        ),
     }
     return FamilyBlock(
         name="intervention",
         present=True,
         values=_ordered(values, columns),
-        source_entity_ids=tuple(sources),
+        source_entity_ids=tuple(item.source_entity_id for item in scoped),
     )
 
 
-def _higher_order_block(
+def _higher_order_block_from_pairs(
+    pairs: Sequence[HigherOrderPerspective],
     examples: ExampleBundle,
-    z_obs: RepresentationTable,
     schema: FeatureSchema,
 ) -> FamilyBlock:
     columns = _columns(schema, "higher_order")
     if len(examples.observations) < 2:
         return FamilyBlock(name="higher_order", present=False)
-    pairs = higher_order_pairs(examples.observations, z_obs)
-    if not pairs:
+    state_ids = {example.state_id for example in examples.states}
+    scoped = [pair for pair in pairs if pair.state_id in state_ids]
+    if not scoped:
         return FamilyBlock(name="higher_order", present=False)
-    inverses = {
-        (pair.target_observer_id, pair.focal_observer_id, pair.state_id): pair
-        for pair in pairs
-    }
-    n_asymmetric = 0
-    for pair in pairs:
-        other = inverses.get(
-            (pair.focal_observer_id, pair.target_observer_id, pair.state_id)
-        )
-        if other is not None and other.vector != pair.vector:
-            n_asymmetric += 1
+    n_asymmetric = count_asymmetric_pairs(scoped)
     values = {
-        "n_pairs": float(len(pairs)),
-        "mean_distance": _mean([pair.distance for pair in pairs]),
-        "mean_only_focal": _mean([float(pair.n_only_focal) for pair in pairs]),
-        "mean_only_target": _mean([float(pair.n_only_target) for pair in pairs]),
-        "mean_shared": _mean([float(pair.n_shared_known) for pair in pairs]),
+        "n_pairs": float(len(scoped)),
+        "mean_distance": _mean([pair.distance for pair in scoped]),
+        "mean_only_focal": _mean([float(pair.n_only_focal) for pair in scoped]),
+        "mean_only_target": _mean([float(pair.n_only_target) for pair in scoped]),
+        "mean_shared": _mean([float(pair.n_shared_known) for pair in scoped]),
         "n_asymmetric": float(n_asymmetric),
     }
     return FamilyBlock(
         name="higher_order",
         present=True,
         values=_ordered(values, columns),
-        source_entity_ids=tuple(pair.entity_id for pair in pairs),
+        source_entity_ids=tuple(pair.entity_id for pair in scoped),
     )
 
 
@@ -690,7 +720,7 @@ def _aggregate_family(
     if not present_blocks:
         return FamilyBlock(name=spec.name, present=False)
     values = {
-        column: _mean([block.values[column] for block in present_blocks])
+        column: _mean([block.value(column) for block in present_blocks])
         for column in spec.columns
     }
     sources = _unique(
@@ -699,7 +729,7 @@ def _aggregate_family(
     return FamilyBlock(
         name=spec.name,
         present=True,
-        values=values,
+        values=_ordered(values, spec.columns),
         source_entity_ids=sources,
     )
 
@@ -730,14 +760,6 @@ def _jaccard_distance(left: set[str], right: set[str]) -> float:
         return 0.0
     union = left | right
     return 1.0 - (len(left & right) / len(union))
-
-
-def _first_item_id(example: ObservationExample) -> str | None:
-    for item in example.items:
-        item_id = item.get("id")
-        if isinstance(item_id, str) and item_id:
-            return item_id
-    return None
 
 
 def _lookup_vectors(
@@ -773,8 +795,10 @@ def _columns(schema: FeatureSchema, name: str) -> tuple[str, ...]:
     raise KeyError(f"no feature family {name!r}")
 
 
-def _ordered(values: Mapping[str, float], columns: Sequence[str]) -> dict[str, float]:
-    return {column: float(values[column]) for column in columns}
+def _ordered(
+    values: Mapping[str, float], columns: Sequence[str]
+) -> tuple[tuple[str, float], ...]:
+    return tuple((column, float(values[column])) for column in columns)
 
 
 def _mean_vector(vectors: Sequence[tuple[float, ...]]) -> tuple[float, ...]:

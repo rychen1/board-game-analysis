@@ -54,7 +54,7 @@ from board_game_analysis.modeling.sequences import (
 )
 from board_game_analysis.modeling.split import split_sequences_by_game
 
-SEQUENCE_REPR_LOGICAL_KEY = "bga:repr/sequences:v0"
+SEQUENCE_REPR_LOGICAL_KEY = "bga:repr/sequence-summaries:v0"
 SEQUENCE_ENCODER_LOGICAL_KEY = "bga:model/sequence-encoder:v0"
 SEQUENCE_PREDICTOR_LOGICAL_KEY = "bga:model/sequence-predictor:v0"
 SEQUENCE_EVAL_LOGICAL_KEY = "bga:evaluation/sequence:v0"

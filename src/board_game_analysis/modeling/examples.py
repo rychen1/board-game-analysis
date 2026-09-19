@@ -5,9 +5,55 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import core_schema
 
 from board_game_analysis.domain import PlaySituation
+
+_ACTION_SET_SEP = "\x1f"
+
+
+class _FrozenDict(dict[str, Any]):
+    def _blocked(self, *_args: object, **_kwargs: object) -> None:
+        raise TypeError("mapping is immutable")
+
+    __setitem__ = _blocked  # type: ignore[assignment]
+    __delitem__ = _blocked  # type: ignore[assignment]
+    clear = _blocked  # type: ignore[assignment]
+    pop = _blocked  # type: ignore[assignment]
+    popitem = _blocked  # type: ignore[assignment]
+    update = _blocked  # type: ignore[assignment]
+    setdefault = _blocked  # type: ignore[assignment]
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, _source_type: object, _handler: object
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            cls._validate,
+            core_schema.dict_schema(
+                core_schema.str_schema(), core_schema.any_schema()
+            ),
+        )
+
+    @classmethod
+    def _validate(cls, value: object) -> _FrozenDict:
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, Mapping):
+            return _freeze_mapping(value)
+        raise TypeError("expected mapping")
+
+
+def _freeze_mapping(value: Mapping[str, Any]) -> _FrozenDict:
+    if isinstance(value, _FrozenDict):
+        return value
+    return _FrozenDict(
+        {
+            key: _freeze_mapping(item) if isinstance(item, Mapping) else item
+            for key, item in value.items()
+        }
+    )
 
 
 class _FrozenModel(BaseModel):
@@ -19,6 +65,7 @@ class StateExample(_FrozenModel):
 
     entity_id: str
     game_id: str
+    situation_id: str
     state_id: str
     turn_number: int | None = None
     phase: str | None = None
@@ -44,11 +91,24 @@ class ObservationExample(_FrozenModel):
 
     entity_id: str
     game_id: str
+    situation_id: str
     observation_id: str
     state_id: str
     observer_id: str
     information_space_id: str
-    items: tuple[dict[str, Any], ...] = ()
+    items: tuple[_FrozenDict, ...] = ()
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _freeze_items(cls, value: object) -> tuple[_FrozenDict, ...]:
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+            raise TypeError("items must be a sequence of mappings")
+        frozen: list[_FrozenDict] = []
+        for item in value:
+            if not isinstance(item, Mapping):
+                raise TypeError("each observation item must be a mapping")
+            frozen.append(_freeze_mapping(item))
+        return tuple(frozen)
 
     def to_mapping(self) -> dict[str, Any]:
         return self.model_dump(mode="python")
@@ -80,15 +140,15 @@ class PairExample(_FrozenModel):
 
     @property
     def from_entity_id(self) -> str:
-        return state_entity_id(self.game_id, self.from_state_id)
+        return state_entity_id(self.situation_id, self.from_state_id)
 
     @property
     def to_entity_id(self) -> str:
-        return state_entity_id(self.game_id, self.to_state_id)
+        return state_entity_id(self.situation_id, self.to_state_id)
 
     @property
     def action_entity_id(self) -> str:
-        return action_set_entity_id(self.game_id, self.action_ids)
+        return action_set_entity_id(self.situation_id, self.action_ids)
 
 
 class SequenceStep(_FrozenModel):
@@ -150,8 +210,9 @@ def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
     situation_id = _situation_id(situation)
     states = tuple(
         StateExample(
-            entity_id=state_entity_id(game_id, game_state.id),
+            entity_id=state_entity_id(situation_id, game_state.id),
             game_id=game_id,
+            situation_id=situation_id,
             state_id=game_state.id,
             turn_number=game_state.turn_number,
             phase=game_state.phase,
@@ -162,14 +223,15 @@ def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
     )
     observations = tuple(
         ObservationExample(
-            entity_id=observation_entity_id(game_id, observation.id),
+            entity_id=observation_entity_id(situation_id, observation.id),
             game_id=game_id,
+            situation_id=situation_id,
             observation_id=observation.id,
             state_id=observation.game_state_id,
             observer_id=observation.observer_id,
             information_space_id=observation.information_space_id,
             items=tuple(
-                item.model_dump(mode="python")
+                _freeze_mapping(item.model_dump(mode="python"))
                 for item in situation.space_for(
                     observation.observer_id, observation.game_state_id
                 ).items
@@ -179,7 +241,7 @@ def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
     )
     pairs = tuple(
         PairExample(
-            entity_id=pair_entity_id(game_id, transition.id),
+            entity_id=pair_entity_id(situation_id, transition.id),
             game_id=game_id,
             situation_id=situation_id,
             transition_id=transition.id,
@@ -195,10 +257,10 @@ def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
     )
     sequences = (
         SequenceExample(
-            entity_id=sequence_entity_id(game_id),
+            entity_id=sequence_entity_id(situation_id),
             game_id=game_id,
             situation_id=situation_id,
-            group_id=game_id,
+            group_id=sequence_entity_id(situation_id),
             event_ids=tuple(game_state.id for game_state in situation.states),
             positions=tuple(index for index, _state in enumerate(situation.states)),
             actor_ids=tuple(
@@ -248,28 +310,29 @@ def _encoder_item(item: Mapping[str, Any]) -> dict[str, object]:
     }
 
 
-def state_entity_id(game_id: str, state_id: str) -> str:
-    return f"{game_id}/state/{state_id}"
+def state_entity_id(situation_id: str, state_id: str) -> str:
+    return f"{situation_id}/state/{state_id}"
 
 
-def observation_entity_id(game_id: str, observation_id: str) -> str:
-    return f"{game_id}/obs/{observation_id}"
+def observation_entity_id(situation_id: str, observation_id: str) -> str:
+    return f"{situation_id}/obs/{observation_id}"
 
 
-def pair_entity_id(game_id: str, transition_id: str) -> str:
-    return f"{game_id}/pair/{transition_id}"
+def pair_entity_id(situation_id: str, transition_id: str) -> str:
+    return f"{situation_id}/pair/{transition_id}"
 
 
-def action_set_entity_id(game_id: str, action_ids: Sequence[str]) -> str:
-    return f"{game_id}/actions/{'+'.join(action_ids)}"
+def action_set_entity_id(situation_id: str, action_ids: Sequence[str]) -> str:
+    ordered = sorted(action_ids)
+    return f"{situation_id}/actions/{_ACTION_SET_SEP.join(ordered)}"
 
 
-def sequence_entity_id(game_id: str) -> str:
-    return f"{game_id}/seq"
+def sequence_entity_id(situation_id: str) -> str:
+    return f"{situation_id}/seq"
 
 
-def trajectory_entity_id(game_id: str, first_transition_id: str) -> str:
-    return f"{game_id}/seq/{first_transition_id}"
+def trajectory_entity_id(situation_id: str, first_transition_id: str) -> str:
+    return f"{situation_id}/seq/{first_transition_id}"
 
 
 def situation_id_for(situation: PlaySituation) -> str:
@@ -279,7 +342,13 @@ def situation_id_for(situation: PlaySituation) -> str:
 def _situation_id(situation: PlaySituation) -> str:
     if not situation.states:
         return situation.game.id
-    return f"{situation.game.id}:{situation.states[0].id}"
+    state_ids = ",".join(sorted(game_state.id for game_state in situation.states))
+    transition_ids = ",".join(
+        sorted(transition.id for transition in situation.transitions)
+    )
+    if transition_ids:
+        return f"{situation.game.id}:{state_ids}|{transition_ids}"
+    return f"{situation.game.id}:{state_ids}"
 
 
 def _observer_ids(

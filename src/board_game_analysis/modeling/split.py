@@ -37,3 +37,12 @@ def split_entities_by_game(
             if game_id in test_games
         ),
     )
+
+
+def split_transitions_by_game(
+    entity_ids: Sequence[str],
+    game_ids: Sequence[str],
+    spec: SplitSpec,
+) -> SplitAssignment:
+    """Game-safe transition split. Same invariant as :func:`split_entities_by_game`."""
+    return split_entities_by_game(entity_ids, game_ids, spec)

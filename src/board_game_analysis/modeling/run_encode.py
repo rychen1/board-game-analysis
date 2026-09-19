@@ -22,16 +22,20 @@ from pydantic import BaseModel, ConfigDict
 from board_game_analysis.modeling.encoders import (
     BAG_HASH_FAMILY,
     DEFAULT_DIM,
+    ActionBagEmbedder,
     ObservationBagEmbedder,
     StateBagEmbedder,
 )
 from board_game_analysis.modeling.examples import ObservationExample, StateExample
+from board_game_analysis.modeling.pairs import ActionExample
 
 OBS_MODEL_LOGICAL_KEY = "bga:model/obs-embedder:v0"
 STATE_MODEL_LOGICAL_KEY = "bga:model/state-embedder:v0"
 OBS_REPR_LOGICAL_KEY = "bga:repr/observations:v0"
 STATE_REPR_LOGICAL_KEY = "bga:repr/states:v0"
 PROBE_EVAL_LOGICAL_KEY = "bga:eval/obs-probes:v0"
+ACTION_MODEL_LOGICAL_KEY = "bga:model/action-embedder:v0"
+ACTION_REPR_LOGICAL_KEY = "bga:repr/actions:v0"
 
 
 class EncodingBundle(BaseModel):
@@ -89,6 +93,28 @@ def encode_states(
     )
 
 
+def encode_actions(
+    examples: Sequence[ActionExample],
+    *,
+    store: Store,
+    run: RunContext,
+    dim: int = DEFAULT_DIM,
+    created_at: datetime | None = None,
+) -> EncodingBundle:
+    encoder = ActionBagEmbedder(dim=dim)
+    return _encode_and_store(
+        entity_ids=[example.entity_id for example in examples],
+        records=[example.to_encoder_record() for example in examples],
+        encoder=encoder,
+        store=store,
+        run=run,
+        dim=dim,
+        repr_key=ACTION_REPR_LOGICAL_KEY,
+        model_key=ACTION_MODEL_LOGICAL_KEY,
+        created_at=created_at,
+    )
+
+
 def store_probe_evaluation(
     store: Store,
     report: EvaluationReport,
@@ -112,7 +138,7 @@ def _encode_and_store(
     *,
     entity_ids: list[str],
     records: list[dict[str, object]],
-    encoder: ObservationBagEmbedder | StateBagEmbedder,
+    encoder: ObservationBagEmbedder | StateBagEmbedder | ActionBagEmbedder,
     store: Store,
     run: RunContext,
     dim: int,

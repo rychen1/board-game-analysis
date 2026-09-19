@@ -13,7 +13,11 @@ from board_game_analysis.modeling.artifacts import (
 )
 from board_game_analysis.modeling.encoders import (
     BAG_HASH_FAMILY,
+    CONDITIONED_FAMILY,
     DEFAULT_DIM,
+    ActionBagEmbedder,
+    CopyStateEncoder,
+    LinearConditionedEncoder,
     ObservationBagEmbedder,
     StateBagEmbedder,
 )
@@ -23,8 +27,11 @@ from board_game_analysis.modeling.examples import (
     PairExample,
     SequenceExample,
     StateExample,
+    action_set_entity_id,
     examples_from_situation,
     examples_from_situations,
+    pair_entity_id,
+    state_entity_id,
 )
 from board_game_analysis.modeling.measures import (
     MEASURE_METHOD,
@@ -36,6 +43,13 @@ from board_game_analysis.modeling.measures import (
     measure_situation,
     measure_situations,
     pairwise_information_asymmetry,
+)
+from board_game_analysis.modeling.pairs import (
+    ActionExample,
+    TransitionPairBundle,
+    pair_table_from_examples,
+    transition_pairs_from_situation,
+    transition_pairs_from_situations,
 )
 from board_game_analysis.modeling.perspectives import (
     BGA_PERSPECTIVE_SPEC,
@@ -50,6 +64,8 @@ from board_game_analysis.modeling.perspectives import (
 )
 from board_game_analysis.modeling.probes import RidgeRegressor, probe_column
 from board_game_analysis.modeling.run_encode import (
+    ACTION_MODEL_LOGICAL_KEY,
+    ACTION_REPR_LOGICAL_KEY,
     OBS_MODEL_LOGICAL_KEY,
     OBS_REPR_LOGICAL_KEY,
     PROBE_EVAL_LOGICAL_KEY,
@@ -57,15 +73,33 @@ from board_game_analysis.modeling.run_encode import (
     STATE_REPR_LOGICAL_KEY,
     EncodingBundle,
     bag_encoding_spec,
+    encode_actions,
     encode_observations,
     encode_states,
     store_probe_evaluation,
 )
-from board_game_analysis.modeling.split import split_entities_by_game
+from board_game_analysis.modeling.split import (
+    split_entities_by_game,
+    split_transitions_by_game,
+)
+from board_game_analysis.modeling.transitions import (
+    TRANSITION_EVAL_LOGICAL_KEY,
+    TRANSITION_MODEL_LOGICAL_KEY,
+    TRANSITION_REPR_LOGICAL_KEY,
+    TransitionEvaluation,
+    TransitionRun,
+    evaluate_transitions,
+    run_transition_experiment,
+    target_states_for_pairs,
+    transition_scalar_table,
+)
 
 __all__ = [
+    "ACTION_MODEL_LOGICAL_KEY",
+    "ACTION_REPR_LOGICAL_KEY",
     "BAG_HASH_FAMILY",
     "BGA_PERSPECTIVE_SPEC",
+    "CONDITIONED_FAMILY",
     "DEFAULT_DIM",
     "EXAMPLES_LOGICAL_KEY",
     "MEASUREMENTS_LOGICAL_KEY",
@@ -79,8 +113,15 @@ __all__ = [
     "STATE_MODEL_LOGICAL_KEY",
     "STATE_REPR_LOGICAL_KEY",
     "SUPPORTED_METRIC_IDS",
+    "TRANSITION_EVAL_LOGICAL_KEY",
+    "TRANSITION_MODEL_LOGICAL_KEY",
+    "TRANSITION_REPR_LOGICAL_KEY",
+    "ActionBagEmbedder",
+    "ActionExample",
+    "CopyStateEncoder",
     "EncodingBundle",
     "ExampleBundle",
+    "LinearConditionedEncoder",
     "MeasureSpec",
     "ObservationBagEmbedder",
     "ObservationExample",
@@ -90,11 +131,17 @@ __all__ = [
     "SequenceExample",
     "StateBagEmbedder",
     "StateExample",
+    "TransitionEvaluation",
+    "TransitionPairBundle",
+    "TransitionRun",
+    "action_set_entity_id",
     "aligned_distance_pairs",
     "bag_encoding_spec",
     "default_measure_spec",
+    "encode_actions",
     "encode_observations",
     "encode_states",
+    "evaluate_transitions",
     "examples_from_situation",
     "examples_from_situations",
     "examples_payload_bytes",
@@ -104,15 +151,24 @@ __all__ = [
     "measure_situations",
     "measurements_payload_bytes",
     "observation_label_table",
+    "pair_entity_id",
+    "pair_table_from_examples",
     "pairwise_information_asymmetry",
     "perspective_distances",
     "perspective_table_from_observations",
     "probe_column",
+    "run_transition_experiment",
     "scalar_measurement_table",
     "split_entities_by_game",
+    "split_transitions_by_game",
+    "state_entity_id",
     "store_examples",
     "store_measurements",
     "store_perspective_distances",
     "store_perspectives",
     "store_probe_evaluation",
+    "target_states_for_pairs",
+    "transition_pairs_from_situation",
+    "transition_pairs_from_situations",
+    "transition_scalar_table",
 ]

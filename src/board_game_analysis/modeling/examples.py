@@ -67,14 +67,28 @@ class PairExample(_FrozenModel):
 
     entity_id: str
     game_id: str
+    situation_id: str
     transition_id: str
     from_state_id: str
     to_state_id: str
     action_ids: tuple[str, ...]
     kind: str
+    observer_ids: tuple[str, ...] = ()
 
     def to_mapping(self) -> dict[str, Any]:
         return self.model_dump(mode="python")
+
+    @property
+    def from_entity_id(self) -> str:
+        return state_entity_id(self.game_id, self.from_state_id)
+
+    @property
+    def to_entity_id(self) -> str:
+        return state_entity_id(self.game_id, self.to_state_id)
+
+    @property
+    def action_entity_id(self) -> str:
+        return action_set_entity_id(self.game_id, self.action_ids)
 
 
 class SequenceExample(_FrozenModel):
@@ -109,9 +123,10 @@ class ExampleBundle(_FrozenModel):
 def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
     """Project one play fragment into encoder-ready records."""
     game_id = situation.game.id
+    situation_id = _situation_id(situation)
     states = tuple(
         StateExample(
-            entity_id=_state_entity_id(game_id, game_state.id),
+            entity_id=state_entity_id(game_id, game_state.id),
             game_id=game_id,
             state_id=game_state.id,
             turn_number=game_state.turn_number,
@@ -123,7 +138,7 @@ def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
     )
     observations = tuple(
         ObservationExample(
-            entity_id=_observation_entity_id(game_id, observation.id),
+            entity_id=observation_entity_id(game_id, observation.id),
             game_id=game_id,
             observation_id=observation.id,
             state_id=observation.game_state_id,
@@ -140,19 +155,23 @@ def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
     )
     pairs = tuple(
         PairExample(
-            entity_id=_pair_entity_id(game_id, transition.id),
+            entity_id=pair_entity_id(game_id, transition.id),
             game_id=game_id,
+            situation_id=situation_id,
             transition_id=transition.id,
             from_state_id=transition.from_state_id,
             to_state_id=transition.to_state_id,
             action_ids=tuple(transition.action_ids),
             kind=transition.kind,
+            observer_ids=_observer_ids(
+                situation, transition.from_state_id, transition.to_state_id
+            ),
         )
         for transition in situation.transitions
     )
     sequences = (
         SequenceExample(
-            entity_id=_sequence_entity_id(game_id),
+            entity_id=sequence_entity_id(game_id),
             game_id=game_id,
             group_id=game_id,
             event_ids=tuple(game_state.id for game_state in situation.states),
@@ -204,17 +223,41 @@ def _encoder_item(item: Mapping[str, Any]) -> dict[str, object]:
     }
 
 
-def _state_entity_id(game_id: str, state_id: str) -> str:
+def state_entity_id(game_id: str, state_id: str) -> str:
     return f"{game_id}/state/{state_id}"
 
 
-def _observation_entity_id(game_id: str, observation_id: str) -> str:
+def observation_entity_id(game_id: str, observation_id: str) -> str:
     return f"{game_id}/obs/{observation_id}"
 
 
-def _pair_entity_id(game_id: str, transition_id: str) -> str:
+def pair_entity_id(game_id: str, transition_id: str) -> str:
     return f"{game_id}/pair/{transition_id}"
 
 
-def _sequence_entity_id(game_id: str) -> str:
+def action_set_entity_id(game_id: str, action_ids: Sequence[str]) -> str:
+    return f"{game_id}/actions/{'+'.join(action_ids)}"
+
+
+def sequence_entity_id(game_id: str) -> str:
     return f"{game_id}/seq"
+
+
+def _situation_id(situation: PlaySituation) -> str:
+    if not situation.states:
+        return situation.game.id
+    return f"{situation.game.id}:{situation.states[0].id}"
+
+
+def _observer_ids(
+    situation: PlaySituation, from_state_id: str, to_state_id: str
+) -> tuple[str, ...]:
+    states = {from_state_id, to_state_id}
+    seen: list[str] = []
+    for observation in situation.observations:
+        if observation.game_state_id not in states:
+            continue
+        if observation.observer_id in seen:
+            continue
+        seen.append(observation.observer_id)
+    return tuple(seen)

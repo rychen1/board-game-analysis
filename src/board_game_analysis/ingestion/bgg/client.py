@@ -8,15 +8,18 @@ from datetime import UTC, datetime
 import httpx
 
 from board_game_analysis.config import Settings
+from board_game_analysis.ingestion.bgg.parser import split_item_documents
 from board_game_analysis.ingestion.bgg.types import RawArtifact
 from board_game_analysis.ingestion.errors import (
     BggAuthenticationError,
     BggHttpError,
     BggNotFoundError,
 )
+from board_game_analysis.ingestion.util import chunked
 
 SOURCE = "boardgamegeek"
 RETRY_STATUSES = {202, 429, 503}
+MAX_THING_IDS_PER_REQUEST = 20
 
 
 class BggClient:
@@ -46,6 +49,22 @@ class BggClient:
         self.close()
 
     def fetch_game(self, source_id: str) -> RawArtifact:
+        artifacts = self.fetch_games([source_id])
+        if not artifacts:
+            msg = f"BGG thing id {source_id} was not found"
+            raise BggNotFoundError(msg)
+        return artifacts[0]
+
+    def fetch_games(self, source_ids: list[str]) -> list[RawArtifact]:
+        """Fetch thing ids in batches of at most 20. Missing ids are omitted."""
+        token = self._require_token()
+        artifacts: list[RawArtifact] = []
+        batch_size = self._batch_size()
+        for chunk in chunked(source_ids, batch_size):
+            artifacts.extend(self._fetch_chunk(chunk, token))
+        return artifacts
+
+    def _require_token(self) -> str:
         token = self._settings.bgg_token
         if not token:
             msg = (
@@ -54,7 +73,13 @@ class BggClient:
                 "Do not scrape HTML."
             )
             raise BggAuthenticationError(msg)
-        url = self._thing_url(source_id)
+        return token
+
+    def _batch_size(self) -> int:
+        return min(self._settings.bgg_batch_size, MAX_THING_IDS_PER_REQUEST)
+
+    def _fetch_chunk(self, source_ids: list[str], token: str) -> list[RawArtifact]:
+        url = self._thing_url(source_ids)
         response = self._request(url, token)
         if response.status_code == 401 or response.status_code == 403:
             msg = (
@@ -65,30 +90,38 @@ class BggClient:
         if response.status_code >= 400:
             msg = f"BGG HTTP {response.status_code} for {url}"
             raise BggHttpError(msg)
-        body = response.text
-        if "<item " not in body and "<item>" not in body:
-            msg = f"BGG thing id {source_id} was not found"
-            raise BggNotFoundError(msg)
+        retrieved_at = datetime.now(UTC)
         content_type = response.headers.get("content-type", "application/xml")
-        return RawArtifact(
-            source=SOURCE,
-            source_identifier=str(source_id),
-            retrieved_at=datetime.now(UTC),
-            request_url=url,
-            content_type=content_type.split(";")[0].strip(),
-            http_status=response.status_code,
-            body=body,
-        )
-
-    def fetch_games(self, source_ids: list[str]) -> list[RawArtifact]:
-        return [self.fetch_game(source_id) for source_id in source_ids]
+        content_type = content_type.split(";")[0].strip()
+        documents = split_item_documents(response.text)
+        artifacts: list[RawArtifact] = []
+        for source_id in source_ids:
+            body = documents.get(source_id)
+            if body is None:
+                continue
+            artifacts.append(
+                RawArtifact(
+                    source=SOURCE,
+                    source_identifier=str(source_id),
+                    retrieved_at=retrieved_at,
+                    request_url=url,
+                    content_type=content_type,
+                    http_status=response.status_code,
+                    body=body,
+                )
+            )
+        return artifacts
 
     def _headers(self) -> dict[str, str]:
         return {"User-Agent": self._settings.http_user_agent}
 
-    def _thing_url(self, source_id: str) -> str:
+    def _thing_url(self, source_ids: list[str] | str) -> str:
+        if isinstance(source_ids, str):
+            joined = source_ids
+        else:
+            joined = ",".join(source_ids)
         base = self._settings.bgg_base_url.rstrip("/")
-        return f"{base}/thing?id={source_id}&stats=1"
+        return f"{base}/thing?id={joined}&stats=1"
 
     def _request(self, url: str, token: str) -> httpx.Response:
         last_error: BggHttpError | None = None

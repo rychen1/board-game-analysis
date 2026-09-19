@@ -47,7 +47,7 @@ back to an API record or rulebook page.
 ```
 src/board_game_analysis/
   domain/         # Pydantic models (no FastAPI imports)
-  ingestion/      # placeholder for acquisition
+  ingestion/      # BGG XML API2 corpus pipeline
   extraction/     # placeholder for rule/mechanic extraction
   analysis/       # placeholder for measurements
   simulation/     # placeholder for agent play
@@ -89,11 +89,24 @@ corpus scores.
 ## Ingestion v0
 
 BoardGameGeek XML API2 metadata only. Raw XML is archived, then normalized
-to `Game`. Live calls need `BGG_TOKEN`. Details:
+to `Game`. Live calls need `BGG_TOKEN`. Field catalog:
+[docs/data-dictionary.md](docs/data-dictionary.md). Pipeline details:
 [docs/ingestion.md](docs/ingestion.md).
 
 ```bash
 uv run board-game-ingest 13
+uv run board-game-ingest --corpus --limit 25
+```
+
+The packaged corpus is 50 frozen BGG ids. The pipeline batches up to 20
+ids per request, resumes from `data/raw/`, and is intended to scale to
+about 1,000 games. Do not commit downloaded XML or JSON.
+
+A live 25-game smoke corpus can be inspected with
+`notebooks/01_corpus_overview.ipynb` (data-quality only, not predictive):
+
+```bash
+uv sync --group notebook
 ```
 
 ## Setup
@@ -101,7 +114,7 @@ uv run board-game-ingest 13
 Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync --group dev
+uv sync --locked --group dev
 ```
 
 Optional local PostgreSQL (unused until a storage layer exists):
@@ -113,12 +126,22 @@ docker compose up -d
 
 ## Tests and checks
 
+Requires the locked environment. CI uses the same commands.
+
 ```bash
+uv sync --locked --group dev
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run pyright          # typecheck (current); later swap: uv run ty check
 uv run pytest
-uv run ruff check .
-uv run ruff format .
-uv run pyright
 ```
+
+Do not run two type checkers. Pyright is the current type-checking
+implementation, not an architectural dependency.
+
+CI also checks out sibling `ds-platform` so the local path dependency in
+`pyproject.toml` resolves. Do not add DevOps infrastructure to
+`ds-platform` to make that work.
 
 ## API
 
@@ -133,7 +156,7 @@ uv run uvicorn board_game_analysis.api.main:app --reload
 - `data/raw/` — unmodified acquisitions
 - `data/processed/` — cleaned or normalized tables
 - `data/derived/` — analysis outputs
-- `schemas/` — reserved for later JSON Schema / interchange exports
+- `schemas/` — JSON Schema for ingested `Game` records (`game.schema.json`)
 - `notebooks/` — exploratory analysis
 - `scripts/` — one-off operational scripts
 

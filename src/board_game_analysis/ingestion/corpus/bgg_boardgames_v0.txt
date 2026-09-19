@@ -1,0 +1,55 @@
+# bgg_boardgames_v0
+# Frozen BoardGameGeek thing ids for the small-corpus pipeline.
+# Default smoke run is the first 50 ids (`--limit 50`).
+# The pipeline is built to ingest the full file (and larger lists up to ~1000).
+# One id per line. Comments start with #. Order is part of the corpus definition.
+13	# Catan
+9209	# Ticket to Ride
+822	# Carcassonne
+2651	# Power Grid
+31260	# Agricola
+36218	# Dominion
+68448	# 7 Wonders
+148228	# Splendor
+169786	# Scythe
+174430	# Gloomhaven
+167791	# Terraforming Mars
+266192	# Wingspan
+30549	# Pandemic
+161936	# Pandemic Legacy: Season 1
+98778	# Hanabi
+178900	# Codenames
+230802	# Azul
+12333	# Twilight Struggle
+3076	# Puerto Rico
+93	# El Grande
+162886	# Spirit Island
+224517	# Brass: Birmingham
+237182	# Root
+173346	# 7 Wonders Duel
+199792	# Everdell
+291572	# Cascadia
+283355	# Dune: Imperium
+342942	# Ark Nova
+11	# Bohnanza
+50	# Lost Cities
+215	# Tichu
+171	# Chess
+188	# Go
+2397	# Backgammon
+1406	# Monopoly
+39856	# Dixit
+254640	# Just One
+269385	# The Crew
+262215	# The Mind
+244521	# The Quacks of Quedlinburg
+120677	# Terra Mystica
+124361	# Concordia
+28143	# Race for the Galaxy
+18602	# Caylus
+4098	# Age of Steam
+102794	# Caverna
+70323	# King of Tokyo
+181304	# Mysterium
+225694	# Decrypto
+42048	# Telestrations

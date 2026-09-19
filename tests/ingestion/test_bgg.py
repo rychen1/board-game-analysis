@@ -11,7 +11,11 @@ from board_game_analysis.domain.game import Game
 from board_game_analysis.ingestion.archive import RawArchive
 from board_game_analysis.ingestion.bgg.client import BggClient
 from board_game_analysis.ingestion.bgg.normalizer import normalize_bgg_artifact
-from board_game_analysis.ingestion.bgg.parser import parse_thing_xml
+from board_game_analysis.ingestion.bgg.parser import (
+    parse_thing_xml,
+    parse_things_xml,
+    split_item_documents,
+)
 from board_game_analysis.ingestion.bgg.types import RawArtifact
 from board_game_analysis.ingestion.errors import (
     BggAuthenticationError,
@@ -209,6 +213,63 @@ def test_pipeline_uses_raw_cache(tmp_path: Path) -> None:
     assert loaded.title == "CATAN"
 
 
+def test_parse_things_xml_reads_batch_items() -> None:
+    things = parse_things_xml(_xml("bgg_thing_batch_13_9209.xml"))
+    assert [thing.bgg_id for thing in things] == ["13", "9209"]
+    assert things[1].primary_name == "Ticket to Ride"
+
+
+def test_split_item_documents_are_parseable() -> None:
+    documents = split_item_documents(_xml("bgg_thing_batch_13_9209.xml"))
+    assert set(documents) == {"13", "9209"}
+    assert parse_thing_xml(documents["13"]).primary_name == "CATAN"
+    assert parse_thing_xml(documents["9209"]).bgg_id == "9209"
+
+
+def test_fetch_games_batches_and_omits_missing() -> None:
+    settings = _settings(Path("/tmp"))
+    settings = settings.model_copy(update={"bgg_batch_size": 20})
+    body = _xml("bgg_thing_batch_13_9209.xml")
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        assert str(request.url).endswith("/thing?id=13,9209,999999&stats=1")
+        return httpx.Response(200, text=body, headers={"content-type": "text/xml"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http:
+        client = BggClient(settings, http_client=http)
+        artifacts = client.fetch_games(["13", "9209", "999999"])
+    assert len(calls) == 1
+    assert [artifact.source_identifier for artifact in artifacts] == ["13", "9209"]
+    assert parse_thing_xml(artifacts[0].body).bgg_id == "13"
+
+
+def test_fetch_games_respects_batch_size() -> None:
+    settings = _settings(Path("/tmp")).model_copy(update={"bgg_batch_size": 1})
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        if str(request.url).endswith("/thing?id=13&stats=1"):
+            return httpx.Response(
+                200,
+                text=_xml("bgg_thing_13.xml"),
+                headers={"content-type": "text/xml"},
+            )
+        return httpx.Response(
+            200,
+            text=_xml("bgg_thing_9209.xml"),
+            headers={"content-type": "text/xml"},
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http:
+        client = BggClient(settings, http_client=http)
+        artifacts = client.fetch_games(["13", "9209"])
+    assert len(calls) == 2
+    assert [artifact.source_identifier for artifact in artifacts] == ["13", "9209"]
+
+
 def test_categories_are_not_interpretations() -> None:
     game = normalize_bgg_artifact(_artifact(_xml("bgg_thing_13.xml")))
     assert "Negotiation" in game.categories
@@ -216,3 +277,14 @@ def test_categories_are_not_interpretations() -> None:
     dumped = game.model_dump()
     assert "cooperative" not in dumped
     assert "hidden_information" not in dumped
+
+
+def test_boardgame_with_expansion_links_is_still_a_game() -> None:
+    """Live Catan has many expansion/accessory *links*; item@type is boardgame."""
+    thing = parse_thing_xml(_xml("bgg_thing_13.xml"))
+    assert thing.item_type == "boardgame"
+    game = normalize_bgg_artifact(_artifact(_xml("bgg_thing_13.xml")))
+    assert game.id == "bgg-13"
+    assert game.title == "CATAN"
+    assert "Catan: Cities & Knights" not in game.categories
+    assert all(mechanic.name != "Catan playmat" for mechanic in game.mechanics)

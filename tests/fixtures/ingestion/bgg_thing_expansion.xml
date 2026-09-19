@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
+    <item type="boardgameexpansion" id="999003">
+        <name type="primary" sortindex="1" value="Catan: Cities &amp; Knights" />
+        <yearpublished value="1998" />
+        <minplayers value="3" />
+        <maxplayers value="4" />
+        <playingtime value="90" />
+        <minplaytime value="90" />
+        <maxplaytime value="90" />
+        <link type="boardgamecategory" id="1021" value="Economic" />
+        <statistics page="1">
+            <ratings>
+                <usersrated value="100" />
+                <average value="7.0" />
+                <numweights value="10" />
+                <averageweight value="2.5" />
+            </ratings>
+        </statistics>
+    </item>
+</items>

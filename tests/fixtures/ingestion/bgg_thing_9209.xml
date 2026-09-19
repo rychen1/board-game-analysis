@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items termsofuse="https://boardgamegeek.com/xmlapi/termsofuse">
+    <item type="boardgame" id="9209">
+        <name type="primary" sortindex="1" value="Ticket to Ride" />
+        <yearpublished value="2004" />
+        <minplayers value="2" />
+        <maxplayers value="5" />
+        <playingtime value="60" />
+        <minplaytime value="30" />
+        <maxplaytime value="60" />
+        <link type="boardgamecategory" id="1034" value="Trains" />
+        <link type="boardgamemechanic" id="2041" value="Set Collection" />
+        <link type="boardgamedesigner" id="9" value="Alan R. Moon" />
+        <link type="boardgamepublisher" id="157" value="Days of Wonder" />
+        <statistics page="1">
+            <ratings>
+                <usersrated value="90000" />
+                <average value="7.4" />
+                <numweights value="5000" />
+                <averageweight value="1.84" />
+            </ratings>
+        </statistics>
+    </item>
+</items>

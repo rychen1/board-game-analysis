@@ -5,11 +5,17 @@ from board_game_analysis.ingestion.bgg.normalizer import (
     normalize_bgg_artifact,
     normalize_bgg_thing,
 )
-from board_game_analysis.ingestion.bgg.parser import parse_thing_xml
+from board_game_analysis.ingestion.bgg.parser import (
+    parse_thing_xml,
+    parse_things_xml,
+    split_item_documents,
+)
 
 __all__ = [
     "BggClient",
     "normalize_bgg_artifact",
     "normalize_bgg_thing",
     "parse_thing_xml",
+    "parse_things_xml",
+    "split_item_documents",
 ]

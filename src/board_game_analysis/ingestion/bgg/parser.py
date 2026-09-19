@@ -9,16 +9,47 @@ from board_game_analysis.ingestion.errors import BggNotFoundError, IngestionErro
 
 
 def parse_thing_xml(body: str) -> BggThing:
-    """Parse a `/thing?stats=1` XML document containing one item."""
+    """Parse a `/thing?stats=1` XML document. Uses the first `<item>` if several."""
+    things = parse_things_xml(body)
+    if not things:
+        msg = "BGG response contained no <item>"
+        raise BggNotFoundError(msg)
+    return things[0]
+
+
+def parse_things_xml(body: str) -> list[BggThing]:
+    """Parse every `<item>` in a `/thing` document (BGG allows up to 20 ids)."""
+    root = _parse_root(body)
+    return [_parse_item(item) for item in root.findall("item")]
+
+
+def split_item_documents(body: str) -> dict[str, str]:
+    """Split a multi-item `/thing` response into per-id XML documents.
+
+    Missing or id-less items are omitted. The returned documents are valid
+    input for `parse_thing_xml`.
+    """
+    root = _parse_root(body)
+    documents: dict[str, str] = {}
+    for item in list(root.findall("item")):
+        bgg_id = item.attrib.get("id")
+        if not bgg_id:
+            continue
+        wrapper = ET.Element("items")
+        wrapper.append(item)
+        documents[bgg_id] = ET.tostring(wrapper, encoding="unicode")
+    return documents
+
+
+def _parse_root(body: str) -> ET.Element:
     try:
-        root = ET.fromstring(body)
+        return ET.fromstring(body)
     except ET.ParseError as exc:
         msg = "BGG response was not valid XML"
         raise IngestionError(msg) from exc
-    item = root.find("item")
-    if item is None:
-        msg = "BGG response contained no <item>"
-        raise BggNotFoundError(msg)
+
+
+def _parse_item(item: ET.Element) -> BggThing:
     bgg_id = item.attrib.get("id")
     if not bgg_id:
         msg = "BGG <item> is missing id"

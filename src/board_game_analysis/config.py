@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     bgg_rate_limit_seconds: float = Field(default=5.0, ge=0)
     bgg_max_retries: int = Field(default=4, ge=1)
     bgg_retry_backoff_seconds: float = Field(default=2.0, ge=0)
+    bgg_batch_size: int = Field(default=20, ge=1, le=20)
     http_user_agent: str = (
         "board-game-analysis/0.1.0 "
         "(research ingestion; https://github.com/rychen1/board-game-analysis)"

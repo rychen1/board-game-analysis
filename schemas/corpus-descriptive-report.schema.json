@@ -1,0 +1,59 @@
+{
+  "$id": "https://github.com/rychen1/board-game-analysis/schemas/corpus-descriptive-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CorpusDescriptiveReport",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "analysis_id",
+    "analysis_version",
+    "layer",
+    "caveat",
+    "questions",
+    "corpus",
+    "tables"
+  ],
+  "properties": {
+    "analysis_id": {
+      "const": "corpus_descriptive_v1"
+    },
+    "analysis_version": {
+      "type": "string"
+    },
+    "layer": {
+      "type": "string"
+    },
+    "caveat": {
+      "type": "string"
+    },
+    "unsupported": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "required": ["corpus_id", "n_games", "payload_id"],
+      "properties": {
+        "corpus_id": { "type": "string" },
+        "jsonl_name": { "type": "string" },
+        "n_games": { "type": "integer", "minimum": 0 },
+        "n_load_errors": { "type": "integer", "minimum": 0 },
+        "payload_id": { "type": "string" }
+      }
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "tables": {
+      "type": "object"
+    }
+  }
+}

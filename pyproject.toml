@@ -9,6 +9,7 @@ dependencies = [
     "ds-platform",
     "fastapi>=0.115",
     "httpx>=0.27",
+    "matplotlib>=3.11.2",
     "pydantic>=2",
     "pydantic-settings>=2",
     "uvicorn>=0.32",
@@ -16,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 board-game-ingest = "board_game_analysis.ingestion.cli:main"
+bga-analyze = "board_game_analysis.analysis.cli:main"
 
 [dependency-groups]
 dev = [
@@ -37,6 +39,7 @@ packages = ["src/board_game_analysis"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/board_game_analysis/ingestion/corpus/bgg_boardgames_v0.txt" = "board_game_analysis/ingestion/corpus/bgg_boardgames_v0.txt"
+"src/board_game_analysis/ingestion/corpus/bgg_boardgames_v1.txt" = "board_game_analysis/ingestion/corpus/bgg_boardgames_v1.txt"
 
 [tool.ruff]
 src = ["src", "tests"]

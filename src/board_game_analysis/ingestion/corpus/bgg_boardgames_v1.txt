@@ -1,0 +1,222 @@
+# bgg_boardgames_v1
+# Curated convenience / coverage sample of 200 BoardGameGeek thing ids.
+# Not a probability sample, not representative of all BGG games, and not a
+# rank or "best of" snapshot. Titles in comments are human-readable only;
+# they are not metadata and are not a source of truth.
+#
+# Construction:
+#   1. The first 50 ids are exactly bgg_boardgames_v0, in that order.
+#   2. About 150 additional expected base-game ids were added to widen
+#      descriptive coverage across era, player profile, weight, and family.
+#   3. The pipeline still skips non-boardgame item types; this list does
+#      not change that rule.
+#
+# Intended coverage (qualitative, not quotas):
+#   eras: pre-1970, 1970-1994, 1995-2009, 2010-2016, 2017+
+#   players: dedicated 2-player, family/general 2-4, 5+ / party
+#   weight: light, medium, heavy
+#   families: cooperative, abstract, war, deck-building, area control,
+#             drafting, deduction, engine-building
+#
+# One id per line. Comments start with #. Order is part of the corpus
+# definition. Duplicate ids keep the first occurrence.
+13	# Catan
+9209	# Ticket to Ride
+822	# Carcassonne
+2651	# Power Grid
+31260	# Agricola
+36218	# Dominion
+68448	# 7 Wonders
+148228	# Splendor
+169786	# Scythe
+174430	# Gloomhaven
+167791	# Terraforming Mars
+266192	# Wingspan
+30549	# Pandemic
+161936	# Pandemic Legacy: Season 1
+98778	# Hanabi
+178900	# Codenames
+230802	# Azul
+12333	# Twilight Struggle
+3076	# Puerto Rico
+93	# El Grande
+162886	# Spirit Island
+224517	# Brass: Birmingham
+237182	# Root
+173346	# 7 Wonders Duel
+199792	# Everdell
+291572	# Cascadia
+283355	# Dune: Imperium
+342942	# Ark Nova
+11	# Bohnanza
+50	# Lost Cities
+215	# Tichu
+171	# Chess
+188	# Go
+2397	# Backgammon
+1406	# Monopoly
+39856	# Dixit
+254640	# Just One
+269385	# The Crew
+262215	# The Mind
+244521	# The Quacks of Quedlinburg
+120677	# Terra Mystica
+124361	# Concordia
+28143	# Race for the Galaxy
+18602	# Caylus
+4098	# Age of Steam
+102794	# Caverna
+70323	# King of Tokyo
+181304	# Mysterium
+225694	# Decrypto
+42048	# Telestrations
+5	# Acquire
+3	# Samurai
+42	# Tigris & Euphrates
+54	# Tikal
+71	# Civilization
+91	# Paths of Glory
+94	# Elfenland
+118	# Modern Art
+181	# Risk
+220	# High Society
+320	# Scrabble
+463	# Through the Desert
+478	# Imperial
+483	# Diplomacy
+504	# Can't Stop
+555	# The Princes of Florence
+760	# Ra
+811	# Dune
+1035	# Squad Leader
+1294	# Clue
+1917	# Stratego
+2065	# Shogi
+2083	# Checkers
+2093	# Mahjong
+21763	# Mr. Jack
+21790	# Thurn and Taxis
+2243	# Yahtzee
+2281	# Pictionary
+2389	# Othello
+2392	# Mastermind
+2425	# Battleship
+25613	# Through the Ages
+2653	# Survive: Escape from Atlantis
+2655	# Hive
+2719	# Connect Four
+2921	# The Game of Life
+34635	# Stone Age
+35677	# In the Year of the Dragon
+37111	# Battlestar Galactica
+39463	# Cosmic Encounter
+40354	# Maria
+40692	# Small World
+41002	# Steam
+41114	# The Resistance
+54043	# Jaipur
+6249	# Alhambra
+65244	# Forbidden Island
+72125	# Eclipse
+77423	# The Lord of the Rings: The Card Game
+8217	# San Juan
+84876	# The Castles of Burgundy
+9216	# Goa
+9674	# Ingenious
+96848	# Mage Knight Board Game
+102680	# Trajan
+103885	# Star Wars: X-Wing Miniatures Game
+10547	# Betrayal at House on the Hill
+107529	# Kingdom Builder
+110327	# Lords of Waterdeep
+115746	# War of the Ring
+118048	# Targi
+122515	# Keyflower
+123540	# The Palaces of Carrara
+124742	# Android: Netrunner
+12493	# Twilight Imperium (Third Edition)
+126163	# Tzolk'in: The Mayan Calendar
+127023	# A Game of Thrones: The Board Game (Second Edition)
+128882	# The Resistance: Avalon
+129437	# Legendary: A Marvel Deck Building Game
+13122	# Memoir '44
+131357	# Coup
+132531	# Roll for the Galaxy
+133473	# Sushi Go!
+136063	# Forbidden Desert
+142267	# Star Realms
+144344	# Dead of Winter: A Crossroads Game
+146508	# T.I.M.E Stories
+147020	# One Night Ultimate Werewolf
+148949	# Istanbul
+150376	# Concept
+15062	# Shadows over Camelot
+155821	# Welcome To
+156129	# Deception: Murder in Hong Kong
+157354	# Five Tribes
+158899	# Colt Express
+161970	# Patchwork
+162827	# The Gallerist
+164153	# The Voyages of Marco Polo
+169398	# Exploding Kittens
+170216	# Blood Rage
+171623	# The Game
+172225	# A Feast for Odin
+172386	# Mombasa
+172818	# Above and Below
+174078	# Food Chain Magnate
+175155	# Forbidden Stars
+177736	# A Study in Emerald
+180263	# The Quest for El Dorado
+181260	# Broom Service
+182028	# Through the Ages: A New Story of Civilization
+183394	# Viticulture Essential Edition
+185343	# Anachrony
+187645	# Star Wars: Rebellion
+192135	# Too Many Bones
+193738	# Great Western Trail
+194655	# Santorini
+195421	# The Grizzled
+198773	# Codenames: Pictures
+199478	# Flamme Rouge
+201808	# Clank!: A Deck-Building Adventure
+204583	# Kingdomino
+209778	# Mini Rails
+21050	# Combat Commander: Europe
+216132	# Clank! In! Space!
+220308	# Gaia Project
+229853	# Captain Sonar
+230651	# Mansions of Madness: Second Edition
+233078	# Twilight Imperium: Fourth Edition
+236457	# Architects of the West Kingdom
+244992	# The Taverns of Tiefenthal
+246900	# Eclipse: Second Dawn for the Galaxy
+251247	# Barrage
+256960	# Pax Pamir: Second Edition
+258779	# Underwater Cities
+262543	# Wavelength
+263918	# Paladins of the West Kingdom
+271320	# Maracaibo
+276025	# Mariposas
+285774	# Marvel Champions: The Card Game
+286096	# The Search for Planet X
+291453	# Lost Ruins of Arnak
+296151	# Marvel United
+300531	# Red Rising
+316554	# 7 Wonders Architects
+317985	# Calico
+318184	# Watergate
+324856	# The Crew: Mission Deep Sea
+329465	# Frosthaven
+34119	# Tales of the Arabian Nights
+350184	# Earth
+359971	# Turing Machine
+366013	# Heat: Pedal to the Metal
+367966	# Scout
+370591	# Ticket to Ride Legacy: Legends of the West
+371942	# Flamecraft
+373106	# Distilled
+383126	# Forest Shuffle
+396790	# The White Castle
+397598	# Sky Team
+398471	# SETI: Search for Extraterrestrial Intelligence

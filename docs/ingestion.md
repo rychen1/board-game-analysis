@@ -3,10 +3,15 @@
 Small, reproducible BoardGameGeek metadata pipeline. It is not a production
 crawler, not HTML scraping, and not rulebook extraction.
 
-The pipeline is built to ingest on the order of **~1,000** games. The frozen
-id list checked into the repo is **50** well-known titles so a smoke run is
-`--corpus --limit 25` or `--limit 50`. Do not scrape HTML if the XML API
-rejects a request.
+Two packaged corpora are checked in:
+
+- `bgg_boardgames_v0` — 50-id smoke/validation list (CLI default)
+- `bgg_boardgames_v1` — 200-id convenience coverage sample (v0 prefix plus
+  about 150 additional expected base games)
+
+v1 is **not** a probability sample, not representative of all BGG games,
+and not a rank snapshot. Do not scrape HTML if the XML API rejects a
+request.
 
 Live calls to BGG XML API2 require an application token (`BGG_TOKEN`).
 Without a token the API returns `401 Unauthorized`. Tests never call the
@@ -43,13 +48,13 @@ BggClient.fetch_games(ids)
     → normalize (boardgame items only)
     → Game
     → data/processed/boardgamegeek/{id}.json
-    → data/processed/boardgamegeek/corpus_v0.jsonl
-    → data/derived/corpus/bgg_boardgames_v0.manifest.json
+    → data/processed/boardgamegeek/corpus_v0.jsonl   # or corpus_v1.jsonl
+    → data/derived/corpus/{corpus_id}.manifest.json
 ```
 
 | Piece | Responsibility |
 | --- | --- |
-| Frozen corpus list | `ingestion/corpus/bgg_boardgames_v0.txt` (50 ids; replaceable with ~1000) |
+| Frozen corpus lists | `ingestion/corpus/bgg_boardgames_v0.txt` (50) and `bgg_boardgames_v1.txt` (200) |
 | `BggClient` | HTTP only: timeout, retries, rate limit, User-Agent, Bearer token, batch `/thing` |
 | `parse_thing_xml` / `parse_things_xml` | XML → source-specific `BggThing` |
 | `normalize_bgg_artifact` | `BggThing` + provenance → canonical `Game` |
@@ -139,22 +144,26 @@ uv run board-game-ingest 13
 Frozen corpus (continue on per-id errors; resume from cache):
 
 ```bash
-uv run board-game-ingest --corpus --limit 25   # smoke
-uv run board-game-ingest --corpus --limit 50   # full packaged list
-uv run board-game-ingest --corpus --ids-file path/to/ids.txt --limit 1000
+uv run board-game-ingest --corpus --limit 25   # v0 smoke
+uv run board-game-ingest --corpus --limit 50   # full v0 list
+uv run board-game-ingest --corpus --corpus-id bgg_boardgames_v1
+uv run board-game-ingest --corpus --ids-file path/to/ids.txt --limit 100
 ```
 
-`--force` refetches even when raw files exist.
+`--force` refetches even when raw files exist. `--ids-file` overrides the
+packaged id list for the selected `--corpus-id`.
 
 Writes:
 
 - `data/raw/boardgamegeek/{id}.xml` and `{id}.meta.json`
 - `data/processed/boardgamegeek/{id}.json` for ingested board games
-- `data/processed/boardgamegeek/corpus_v0.jsonl` (corpus runs)
-- `data/derived/corpus/bgg_boardgames_v0.manifest.json` (corpus runs)
+- `data/processed/boardgamegeek/corpus_v0.jsonl` or `corpus_v1.jsonl`
+- `data/derived/corpus/{corpus_id}.manifest.json`
 
-The packaged list is 50 ids. A larger frozen file (up to ~1000) can be
-passed with `--ids-file` without changing the pipeline.
+Dataset/quality logical keys follow the corpus: `bga:corpus:v0` /
+`bga:quality/corpus:v0` or `bga:corpus:v1` / `bga:quality/corpus:v1`.
+The manifest records `ids_file_sha256`, `run_id`, and `code_ref` when Git
+is available.
 
 ## Corpus behaviour
 

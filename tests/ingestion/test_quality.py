@@ -98,6 +98,11 @@ def test_integrity_and_missingness_distinguish_empty_lists() -> None:
     assert report.duplicate_ids == []
     assert report.n_manifest_ok == 2
     assert report.provenance_issues == []
+    assert report.anomaly_counts == {}
+    assert report.anomaly_examples == []
+    assert report.empty_taxonomy == ["bgg-2: Sparse"]
+    assert report.duplicate_mechanic_ids == []
+    assert report.non_boardgame_ok_rows == []
 
 
 def test_numeric_and_list_summaries() -> None:
@@ -136,3 +141,51 @@ def test_flag_anomalies_are_heuristic_only() -> None:
     assert "rating_without_count" in codes
     assert "large_publisher_list" in codes
     assert all(item.game_id == "bgg-9" for item in flags)
+    persisted = integrity_report(
+        CorpusLoad(games=[_game(), flagged], errors=[], raw_objects=[{}, {}]),
+        current_year=2026,
+    )
+    assert persisted.anomaly_counts["implausible_year"] == 1
+    assert persisted.anomaly_counts["rating_off_scale"] == 1
+    assert persisted.anomaly_examples
+    assert persisted.anomaly_examples[0].game_id == "bgg-9"
+
+
+def test_integrity_detects_taxonomy_mechanic_and_item_type_issues() -> None:
+    empty = _game(
+        id="bgg-2",
+        title="Sparse",
+        categories=[],
+        mechanics=[],
+        sources=[_source("2")],
+    )
+    duped = _game(
+        id="bgg-3",
+        title="Duped",
+        mechanics=[
+            Mechanic(id="bgg-2072", name="Dice Rolling"),
+            Mechanic(id="bgg-2072", name="Dice Rolling again"),
+        ],
+        sources=[_source("3")],
+    )
+    report = integrity_report(
+        CorpusLoad(games=[empty, duped], errors=[], raw_objects=[{}, {}]),
+        manifest={
+            "ok": [
+                {
+                    "source_id": "2",
+                    "game_id": "bgg-2",
+                    "item_type": "boardgame",
+                },
+                {
+                    "source_id": "99",
+                    "game_id": "bgg-99",
+                    "item_type": "boardgameexpansion",
+                },
+            ]
+        },
+        current_year=2026,
+    )
+    assert report.empty_taxonomy == ["bgg-2: Sparse"]
+    assert report.duplicate_mechanic_ids == ["bgg-3: bgg-2072"]
+    assert report.non_boardgame_ok_rows == ["99: boardgameexpansion"]

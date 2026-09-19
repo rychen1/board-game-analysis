@@ -1,5 +1,10 @@
 # Analysis specification v0
 
+The first **empirical** pass over ingested Game metadata is
+[analysis-corpus-descriptive-v1.md](analysis-corpus-descriptive-v1.md).
+This document remains the ontology measurement catalog; it is not that
+corpus analysis.
+
 This document proposes dimensions we may eventually measure computationally.
 It is a research framework, not a validated psychometrics paper and not an
 analysis engine.

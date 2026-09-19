@@ -31,6 +31,7 @@ data/processed/*
 !data/processed/.gitkeep
 data/derived/*
 !data/derived/.gitkeep
+data/artifacts/*
 
 # Notebooks / local analysis
 .ipynb_checkpoints/

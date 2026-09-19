@@ -77,6 +77,10 @@ class CorpusLoad:
     raw_objects: list[dict[str, Any]]
 
 
+ANOMALY_EXAMPLE_LIMIT = 20
+BOARDGAME_ITEM_TYPE = "boardgame"
+
+
 @dataclass
 class IntegrityReport:
     n_jsonl_records: int
@@ -94,6 +98,11 @@ class IntegrityReport:
     provenance_issues: list[str]
     expansion_like_titles: list[str]
     manifest_item_types: dict[str, int]
+    anomaly_counts: dict[str, int]
+    anomaly_examples: list[Anomaly]
+    empty_taxonomy: list[str]
+    duplicate_mechanic_ids: list[str]
+    non_boardgame_ok_rows: list[str]
 
 
 @dataclass
@@ -176,6 +185,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
 def integrity_report(
     loaded: CorpusLoad,
     manifest: dict[str, Any] | None = None,
+    *,
+    current_year: int | None = None,
 ) -> IntegrityReport:
     ids = [game.id for game in loaded.games]
     titles = [game.title for game in loaded.games]
@@ -201,6 +212,8 @@ def integrity_report(
         missing_from_jsonl = sorted(manifest_game_ids - jsonl_ids)
         item_types = dict(Counter(str(row.get("item_type")) for row in ok_rows))
 
+    anomalies = flag_anomalies(loaded.games, current_year=current_year)
+    anomaly_counts = dict(sorted(Counter(item.code for item in anomalies).items()))
     return IntegrityReport(
         n_jsonl_records=len(loaded.raw_objects),
         n_unique_ids=len(jsonl_ids),
@@ -219,6 +232,11 @@ def integrity_report(
         provenance_issues=_provenance_issues(loaded.games),
         expansion_like_titles=_expansion_like_titles(loaded.games),
         manifest_item_types=item_types,
+        anomaly_counts=anomaly_counts,
+        anomaly_examples=anomalies[:ANOMALY_EXAMPLE_LIMIT],
+        empty_taxonomy=_empty_taxonomy(loaded.games),
+        duplicate_mechanic_ids=_duplicate_mechanic_ids(loaded.games),
+        non_boardgame_ok_rows=_non_boardgame_ok_rows(manifest),
     )
 
 
@@ -333,7 +351,7 @@ def mechanic_counts(games: list[Game]) -> list[tuple[str, int]]:
 def flag_anomalies(
     games: list[Game],
     *,
-    current_year: int,
+    current_year: int | None = None,
 ) -> list[Anomaly]:
     """Heuristic flags only. Not correction rules and not Game validation."""
     flags: list[Anomaly] = []
@@ -342,7 +360,7 @@ def flag_anomalies(
     return flags
 
 
-def _flags_for_game(game: Game, *, current_year: int) -> list[Anomaly]:
+def _flags_for_game(game: Game, *, current_year: int | None) -> list[Anomaly]:
     flags: list[Anomaly] = []
 
     def add(code: str, detail: str) -> None:
@@ -351,7 +369,9 @@ def _flags_for_game(game: Game, *, current_year: int) -> list[Anomaly]:
         )
 
     year = game.release_year
-    if year is not None and (year < YEAR_MIN_PLAUSIBLE or year > current_year):
+    if year is not None and (
+        year < YEAR_MIN_PLAUSIBLE or (current_year is not None and year > current_year)
+    ):
         add("implausible_year", f"release_year={year}")
     if (
         game.min_players is not None
@@ -437,6 +457,37 @@ def _provenance_issues(games: list[Game]) -> list[str]:
         if source.retrieved_at is None:
             issues.append(f"{game.id}: missing retrieved_at")
     return issues
+
+
+def _empty_taxonomy(games: list[Game]) -> list[str]:
+    return [
+        f"{game.id}: {game.title}"
+        for game in games
+        if not game.categories and not game.mechanics
+    ]
+
+
+def _duplicate_mechanic_ids(games: list[Game]) -> list[str]:
+    notes: list[str] = []
+    for game in games:
+        counts = Counter(mechanic.id for mechanic in game.mechanics)
+        duplicates = sorted(key for key, count in counts.items() if count > 1)
+        if duplicates:
+            notes.append(f"{game.id}: {', '.join(duplicates)}")
+    return notes
+
+
+def _non_boardgame_ok_rows(manifest: dict[str, Any] | None) -> list[str]:
+    if manifest is None:
+        return []
+    notes: list[str] = []
+    for row in manifest.get("ok", []):
+        item_type = row.get("item_type")
+        if item_type is None or item_type == BOARDGAME_ITEM_TYPE:
+            continue
+        source_id = row.get("source_id") or row.get("game_id") or ""
+        notes.append(f"{source_id}: {item_type}")
+    return notes
 
 
 def _expansion_like_titles(games: list[Game]) -> list[str]:

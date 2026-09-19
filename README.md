@@ -96,14 +96,28 @@ to `Game`. Live calls need `BGG_TOKEN`. Field catalog:
 ```bash
 uv run board-game-ingest 13
 uv run board-game-ingest --corpus --limit 25
+uv run board-game-ingest --corpus --corpus-id bgg_boardgames_v1
 ```
 
-The packaged corpus is 50 frozen BGG ids. The pipeline batches up to 20
-ids per request, resumes from `data/raw/`, and is intended to scale to
-about 1,000 games. Do not commit downloaded XML or JSON.
+The default packaged corpus (`bgg_boardgames_v0`) is 50 frozen BGG ids
+for smoke runs. `bgg_boardgames_v1` is a documented 200-id convenience
+coverage sample, not a representative or ranked snapshot. The pipeline
+batches up to 20 ids per request and resumes from `data/raw/`. Do not
+commit downloaded XML or JSON.
 
-A live 25-game smoke corpus can be inspected with
-`notebooks/01_corpus_overview.ipynb` (data-quality only, not predictive):
+Inspect a local corpus with `notebooks/01_corpus_overview.ipynb`
+(descriptive and data-quality only; prefers v1 when present).
+
+The first empirical pass over Game metadata is specified in
+[docs/analysis-corpus-descriptive-v1.md](docs/analysis-corpus-descriptive-v1.md):
+
+```bash
+uv run bga-analyze --corpus-id bgg_boardgames_v1
+```
+
+That writes `data/derived/analysis/corpus_descriptive_v1/` (report, findings,
+figures) and a `dataset` artifact citing the corpus JSONL payload. Notebook:
+`notebooks/02_corpus_descriptive_v1.ipynb`.
 
 ```bash
 uv sync --group notebook

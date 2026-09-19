@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -20,7 +21,8 @@ from board_game_analysis.ingestion.bgg.parser import parse_thing_xml
 from board_game_analysis.ingestion.bgg.types import RawArtifact
 from board_game_analysis.ingestion.corpus.ids import (
     DEFAULT_CORPUS_ID,
-    DEFAULT_CORPUS_VERSION,
+    corpus_path,
+    corpus_spec,
     load_source_ids,
 )
 from board_game_analysis.ingestion.dataset_artifacts import store_corpus_dataset
@@ -45,7 +47,7 @@ from board_game_analysis.ingestion.raw_artifacts import (
     bga_run_context,
     store_raw_bgg_artifact,
 )
-from board_game_analysis.ingestion.util import chunked
+from board_game_analysis.ingestion.util import chunked, try_git_code_ref
 
 BOARDGAME_ITEM_TYPE = "boardgame"
 CORPUS_JSONL_NAME = "corpus_v0.jsonl"
@@ -159,13 +161,22 @@ def ingest_corpus(
     force: bool = False,
     client: BggClient | None = None,
     corpus_id: str = DEFAULT_CORPUS_ID,
-    corpus_version: str = DEFAULT_CORPUS_VERSION,
+    corpus_version: str | None = None,
 ) -> CorpusRunResult:
     """Ingest a frozen id list. Resume from cache; continue on per-id errors."""
+    try:
+        spec = corpus_spec(corpus_id)
+    except ValueError as exc:
+        raise IngestionError(str(exc)) from exc
+    version = corpus_version or spec.version
     started_at = datetime.now(UTC)
     run = bga_run_context(started_at=started_at)
     store = artifact_store(settings.data_dir)
-    source_ids = load_source_ids(ids_file, offset=offset, limit=limit)
+    ids_path = ids_file if ids_file is not None else corpus_path(corpus_id)
+    source_ids = load_source_ids(
+        ids_file, corpus_id=corpus_id, offset=offset, limit=limit
+    )
+    ids_file_sha256 = hashlib.sha256(ids_path.read_bytes()).hexdigest()
     archive = RawArchive(settings.data_dir)
     cached_before = {
         source_id
@@ -230,36 +241,42 @@ def ingest_corpus(
             game_payload_ids.append(document_payload_id)
 
     finished_at = datetime.now(UTC)
-    jsonl_path = write_corpus_jsonl(settings.data_dir, games)
+    jsonl_path = write_corpus_jsonl(settings.data_dir, games, name=spec.jsonl_name)
     dataset_payload_id, _, _ = store_corpus_dataset(
         store,
         jsonl_path.read_bytes(),
         game_payload_ids=game_payload_ids,
         run=run,
+        logical_key=spec.dataset_logical_key,
     )
     manifest_path = write_corpus_manifest(
         settings.data_dir,
-        corpus_id=corpus_id,
-        corpus_version=corpus_version,
+        corpus_id=spec.corpus_id,
+        corpus_version=version,
         requested_ids=source_ids,
         records=records,
         started_at=started_at,
         finished_at=finished_at,
         jsonl_path=jsonl_path,
+        ids_file_sha256=ids_file_sha256,
+        run_id=run.run_id,
+        code_ref=try_git_code_ref(),
     )
     report = integrity_report(
         load_games_jsonl(jsonl_path),
         load_manifest(manifest_path),
+        current_year=finished_at.year,
     )
     store_quality_report(
         store,
         integrity_report_json_bytes(report),
         subject_payload_id=dataset_payload_id,
         run=run,
+        logical_key=spec.quality_logical_key,
     )
     return CorpusRunResult(
-        corpus_id=corpus_id,
-        corpus_version=corpus_version,
+        corpus_id=spec.corpus_id,
+        corpus_version=version,
         requested_ids=source_ids,
         games=games,
         records=records,
@@ -284,10 +301,15 @@ def write_processed_game(data_dir: Path, source_id: str, game: Game) -> Path:
     return path
 
 
-def write_corpus_jsonl(data_dir: Path, games: list[Game]) -> Path:
+def write_corpus_jsonl(
+    data_dir: Path,
+    games: list[Game],
+    *,
+    name: str = CORPUS_JSONL_NAME,
+) -> Path:
     directory = data_dir / "processed" / "boardgamegeek"
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / CORPUS_JSONL_NAME
+    path = directory / name
     lines = [
         json.dumps(game.model_dump(mode="json"), separators=(",", ":"))
         for game in games
@@ -306,6 +328,9 @@ def write_corpus_manifest(
     started_at: datetime,
     finished_at: datetime,
     jsonl_path: Path,
+    ids_file_sha256: str,
+    run_id: str,
+    code_ref: dict[str, Any] | None = None,
 ) -> Path:
     directory = data_dir / "derived" / "corpus"
     directory.mkdir(parents=True, exist_ok=True)
@@ -320,6 +345,8 @@ def write_corpus_manifest(
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "jsonl": str(jsonl_path),
+        "ids_file_sha256": ids_file_sha256,
+        "run_id": run_id,
         "requested_ids": requested_ids,
         "ok": [_record_payload(record) for record in ok],
         "skipped": [_record_payload(record) for record in skipped],
@@ -333,6 +360,8 @@ def write_corpus_manifest(
             "fetched": sum(1 for record in records if not record.cached),
         },
     }
+    if code_ref is not None:
+        payload["code_ref"] = code_ref
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
 

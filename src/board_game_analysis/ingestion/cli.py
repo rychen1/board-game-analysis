@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from board_game_analysis.config import Settings
+from board_game_analysis.ingestion.corpus.ids import DEFAULT_CORPUS_ID
 from board_game_analysis.ingestion.errors import IngestionError
 from board_game_analysis.ingestion.pipeline import ingest_bgg_games, ingest_corpus
 
@@ -16,8 +17,8 @@ def main(argv: list[str] | None = None) -> int:
         prog="board-game-ingest",
         description=(
             "Ingest BoardGameGeek XML API2 thing records. Pass thing ids, or "
-            "use --corpus for the frozen small-corpus list (~50 ids; designed "
-            "to scale to ~1000)."
+            "use --corpus for a packaged id list (default v0, 50 ids; v1 is "
+            "a 200-id coverage sample)."
         ),
     )
     parser.add_argument(
@@ -31,10 +32,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Ingest the frozen packaged id list (resume from raw cache)",
     )
     parser.add_argument(
+        "--corpus-id",
+        default=None,
+        help=("Packaged corpus id (default: bgg_boardgames_v0). Requires --corpus."),
+    )
+    parser.add_argument(
         "--ids-file",
         type=Path,
         default=None,
-        help="Optional id list (comments allowed). Default: packaged corpus.",
+        help="Optional id list (comments allowed). Overrides the packaged file.",
     )
     parser.add_argument(
         "--limit",
@@ -65,10 +71,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.corpus and args.source_ids:
         parser.error("pass thing ids or --corpus, not both")
     extra_corpus_flags = (
-        args.ids_file is not None or args.limit is not None or args.offset
+        args.corpus_id is not None
+        or args.ids_file is not None
+        or args.limit is not None
+        or args.offset
     )
     if not args.corpus and extra_corpus_flags:
-        parser.error("--ids-file, --limit, and --offset require --corpus")
+        parser.error("--corpus-id, --ids-file, --limit, and --offset require --corpus")
 
     settings = Settings()
     try:
@@ -95,6 +104,7 @@ def _run_corpus(args: argparse.Namespace, settings: Settings) -> int:
         offset=args.offset,
         limit=args.limit,
         force=args.force,
+        corpus_id=args.corpus_id or DEFAULT_CORPUS_ID,
     )
     counts = {
         "requested": len(result.requested_ids),

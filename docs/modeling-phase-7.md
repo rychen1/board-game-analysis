@@ -125,11 +125,13 @@ for profile direction. Every neighborhood records representation level
 
 There is no vector database or approximate index.
 
-## 9. Novelty
+## 9. Structural kNN outlierness
 
-`structural_novelty` at neighborhood size `k` is the platform mean
-distance to the `k` nearest other games. `local_isolation` is the same
-number. `nearest_distance` is the `k = 1` value.
+`structural_novelty` at neighborhood size `k` is **structural kNN
+outlierness**: the mean distance to the `k` nearest **training** games.
+Test games are scored as queries against that train reference set.
+`local_isolation` is the same number. `nearest_distance` is the `k = 1`
+value.
 
 `k` is configurable. Values with `k >= n_games` are skipped.
 Multiple `k` may be requested.

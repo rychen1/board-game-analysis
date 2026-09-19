@@ -45,6 +45,12 @@ from board_game_analysis.modeling.encoders.sequence import (
 )
 from board_game_analysis.modeling.encoders.state import StateBagEmbedder
 from board_game_analysis.modeling.examples import examples_from_situations
+from board_game_analysis.modeling.logical_keys import (
+    SEQUENCE_ENCODER_LOGICAL_KEY,
+    SEQUENCE_EVAL_LOGICAL_KEY,
+    SEQUENCE_PREDICTOR_LOGICAL_KEY,
+    SEQUENCE_REPR_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.measures import measure_situations
 from board_game_analysis.modeling.pairs import transition_pairs_from_situations
 from board_game_analysis.modeling.sequences import (
@@ -53,11 +59,6 @@ from board_game_analysis.modeling.sequences import (
     sequences_from_situations,
 )
 from board_game_analysis.modeling.split import split_sequences_by_game
-
-SEQUENCE_REPR_LOGICAL_KEY = "bga:repr/sequence-summaries:v0"
-SEQUENCE_ENCODER_LOGICAL_KEY = "bga:model/sequence-encoder:v0"
-SEQUENCE_PREDICTOR_LOGICAL_KEY = "bga:model/sequence-predictor:v0"
-SEQUENCE_EVAL_LOGICAL_KEY = "bga:evaluation/sequence:v0"
 
 SCALAR_COLUMNS = (
     "information_volume",

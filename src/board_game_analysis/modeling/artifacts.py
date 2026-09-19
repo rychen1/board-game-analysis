@@ -13,10 +13,12 @@ from ds_platform.modeling.spec import spec_config_hash
 
 from board_game_analysis.domain import DerivedMeasurement
 from board_game_analysis.modeling.examples import ExampleBundle, ObservationExample
+from board_game_analysis.modeling.logical_keys import (
+    EXAMPLES_LOGICAL_KEY,
+    MEASUREMENTS_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.measures import MeasureSpec, default_measure_spec
 
-MEASUREMENTS_LOGICAL_KEY = "bga:measurements/ontology-v0:v0"
-EXAMPLES_LOGICAL_KEY = "bga:examples/play-fixtures:v0"
 MEASUREMENTS_MEDIA_TYPE = "application/json"
 EXAMPLES_MEDIA_TYPE = "application/json"
 

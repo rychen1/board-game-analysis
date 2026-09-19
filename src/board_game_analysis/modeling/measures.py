@@ -15,6 +15,7 @@ from board_game_analysis.domain import (
     PlaySituation,
     Visibility,
 )
+from board_game_analysis.modeling._util import jaccard_distance
 from board_game_analysis.modeling.examples import situation_id_for
 
 MEASURE_METHOD = "ontology-v0-naive"
@@ -123,7 +124,7 @@ def pairwise_information_asymmetry(
                         state_id=game_state.id,
                         left_id=left_id,
                         right_id=right_id,
-                        value=_jaccard_distance(left_keys, right_keys),
+                        value=jaccard_distance(left_keys, right_keys),
                     )
                 )
     return scores
@@ -540,16 +541,6 @@ def _known_keys(
     items: Sequence[InformationItem],
 ) -> set[tuple[str | None, str | None]]:
     return {(item.about, item.holder_id) for item in items if item.content_known}
-
-
-def _jaccard_distance(
-    left: set[tuple[str | None, str | None]],
-    right: set[tuple[str | None, str | None]],
-) -> float:
-    if not left and not right:
-        return 0.0
-    union = left | right
-    return len(left ^ right) / len(union)
 
 
 _MEASURE_FNS = {

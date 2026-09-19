@@ -22,10 +22,11 @@ from ds_platform.modeling.representations import RepresentationTable
 from ds_platform.modeling.spec import PerspectiveSpec, spec_config_hash
 
 from board_game_analysis.modeling.examples import ObservationExample
+from board_game_analysis.modeling.logical_keys import (
+    PERSPECTIVE_DISTANCES_LOGICAL_KEY,
+    PERSPECTIVES_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.measures import PairAsymmetry
-
-PERSPECTIVES_LOGICAL_KEY = "bga:repr/perspectives:v0"
-PERSPECTIVE_DISTANCES_LOGICAL_KEY = "bga:repr/perspective-distances:v0"
 
 BGA_PERSPECTIVE_SPEC = PerspectiveSpec(
     subject_field="game_state_id",

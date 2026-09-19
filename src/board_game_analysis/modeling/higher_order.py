@@ -28,6 +28,7 @@ from ds_platform.modeling.representations import (
 from ds_platform.modeling.spec import PerspectiveSpec, spec_config_hash
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from board_game_analysis.modeling._util import known_item_ids
 from board_game_analysis.modeling.encoders.observation import ObservationBagEmbedder
 from board_game_analysis.modeling.examples import ObservationExample
 from board_game_analysis.modeling.interventions import (
@@ -35,14 +36,16 @@ from board_game_analysis.modeling.interventions import (
     InterventionResult,
     apply_intervention,
 )
+from board_game_analysis.modeling.logical_keys import (
+    HIGHER_ORDER_MODEL_LOGICAL_KEY,
+    HIGHER_ORDER_REPR_LOGICAL_KEY,
+    PERSPECTIVE_EVAL_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.perspectives import (
     perspective_table_from_observations,
 )
 
 HIGHER_ORDER_FAMILY = "higher-order-v0"
-HIGHER_ORDER_REPR_LOGICAL_KEY = "bga:repr/higher-order-perspectives:v0"
-HIGHER_ORDER_MODEL_LOGICAL_KEY = "bga:model/higher-order-perspective:v0"
-PERSPECTIVE_EVAL_LOGICAL_KEY = "bga:evaluation/perspective:v0"
 
 _CORPUS_NOTE = (
     "A_about_B is a structural difference of observed views, not a belief about beliefs"
@@ -152,8 +155,8 @@ def higher_order_perspective(
         raise ValueError("higher-order perspectives require the same game_id")
     if len(z_focal) != len(z_target):
         raise ValueError("perspective vectors must have the same dim")
-    known_focal = _known_ids(focal)
-    known_target = _known_ids(target)
+    known_focal = known_item_ids(focal)
+    known_target = known_item_ids(target)
     all_ids = _item_ids(focal) | _item_ids(target)
     only_focal = known_focal - known_target
     only_target = known_target - known_focal
@@ -435,14 +438,6 @@ def run_higher_order_experiment(
         model_payload_id=model_pid,
         evaluation_payload_id=eval_pid,
     )
-
-
-def _known_ids(example: ObservationExample) -> set[str]:
-    return {
-        str(item["id"])
-        for item in example.items
-        if item.get("content_known") and item.get("id")
-    }
 
 
 def _item_ids(example: ObservationExample) -> set[str]:

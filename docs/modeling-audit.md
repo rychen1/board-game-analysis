@@ -287,22 +287,21 @@ Phase 6 artifact tables.
 
 ### H7. Public `__all__` is an export dump
 
-`board_game_analysis.modeling` exports ~200 names, including every
-logical key, every experiment runner, and several phase-internal
-helpers. Missing from `__all__` but used: `FamilyBlock`,
-`situation_id_for`, `sequence_entity_id`, `observation_entity_id`,
-`InformationScalars`, `require_observers`, `counterfactual_entity_id`,
-`encode_action_set`.
+**Status: FIXED (fix 8).** Logical keys live in `logical_keys.py`.
+`modeling.__all__` lists the stable v0 surface (~90 names) plus keys.
+Experiment runners and internal helpers remain on submodules only.
 
-Callers cannot tell what is stable.
+Original finding: ~200 exported names with no stability signal.
 
 ### H8. README and missing Phase 1–4 docs describe a different repo
 
-README still says play pipelines are unimplemented, analysis is a
-placeholder, and “there is no analysis engine”. `modeling/` is absent
-from the architecture tree. There is no `docs/modeling-roadmap.md` and
-no `docs/modeling-phase-1.md` … `phase-4.md`. Phase 5–7 docs exist and
-are mostly accurate, with the overclaims noted above.
+**Status: FIXED (fix 9).** README lists `modeling/`, corpus analysis, and
+links to `docs/modeling-roadmap.md` and phase 1–4 docs. Phase 7 §9 uses
+“structural kNN outlierness”; Phase 4 module doc uses “authored-transition
+model”; geometry APIs refer to the representation space.
+
+Original finding: README claimed pipelines were unimplemented; phase 1–4
+docs were missing.
 
 ## Medium-Priority Findings
 
@@ -864,11 +863,10 @@ keys, `count_asymmetric_pairs`, Phase 6 composition in Phase 7.
 7. ~~**Test quality.** Promote the `AUDIT-*` xfails.~~ **Done** (0
    xfails remain). Remaining: multi-situation fixtures with local ids
    in the main corpus, not only adversarial tests.
-8. **Maintainability.** One module for logical keys; shrink `__all__`;
-   dedupe helpers.
-9. **Ergonomics.** README + Phase 1–4 docs + roadmap that match the
-   tree. Tighten names: “structural kNN outlierness”, “representation
-   space”, “authored-transition model”.
+8. ~~**Maintainability.** One module for logical keys; shrink
+   ``__all__``; dedupe helpers.~~ **Done.**
+9. ~~**Ergonomics.** README + Phase 1–4 docs + roadmap; tightened
+   names.~~ **Done.**
 
 ## What NOT to Fix
 
@@ -940,3 +938,5 @@ Do not delete or weaken audit probes to green the suite.
 | 5 | C6, H3, `AUDIT-ART-*` | Split sequence repr keys; probe eval namespace; `DesignSpaceManifest` |
 | 6 | H6 | `Phase6Context` composes intervention/hop families |
 | — | H2, `AUDIT-HOP-COUNT` | `count_asymmetric_pairs()` — one count per unordered pair |
+| 8 | H7, duplicates | `logical_keys.py`; slim `modeling.__all__`; `_util.py` helpers |
+| 9 | H8, docs drift | README, `modeling-roadmap.md`, phase 1–4 docs; naming updates |

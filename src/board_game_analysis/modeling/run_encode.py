@@ -36,18 +36,19 @@ from board_game_analysis.modeling.examples import (
     SequenceExample,
     StateExample,
 )
+from board_game_analysis.modeling.logical_keys import (
+    ACTION_MODEL_LOGICAL_KEY,
+    ACTION_REPR_LOGICAL_KEY,
+    OBS_MODEL_LOGICAL_KEY,
+    OBS_REPR_LOGICAL_KEY,
+    PROBE_EVAL_LOGICAL_KEY,
+    SEQUENCE_MODEL_LOGICAL_KEY,
+    STATE_MODEL_LOGICAL_KEY,
+    STATE_REPR_LOGICAL_KEY,
+    TRAJECTORY_REPR_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.pairs import ActionExample
 from board_game_analysis.modeling.sequences import sequence_table_from_examples
-
-OBS_MODEL_LOGICAL_KEY = "bga:model/obs-embedder:v0"
-STATE_MODEL_LOGICAL_KEY = "bga:model/state-embedder:v0"
-OBS_REPR_LOGICAL_KEY = "bga:repr/observations:v0"
-STATE_REPR_LOGICAL_KEY = "bga:repr/states:v0"
-PROBE_EVAL_LOGICAL_KEY = "bga:evaluation/obs-probes:v0"
-ACTION_MODEL_LOGICAL_KEY = "bga:model/action-embedder:v0"
-ACTION_REPR_LOGICAL_KEY = "bga:repr/actions:v0"
-SEQUENCE_MODEL_LOGICAL_KEY = "bga:model/sequence-encoder:v0"
-TRAJECTORY_REPR_LOGICAL_KEY = "bga:repr/trajectory-summaries:v0"
 
 
 class EncodingBundle(BaseModel):

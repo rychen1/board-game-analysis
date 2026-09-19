@@ -27,6 +27,7 @@ from ds_platform.modeling.spec import GeometrySpec, SplitSpec, spec_config_hash
 from pydantic import BaseModel, ConfigDict
 
 from board_game_analysis.domain import PlaySituation
+from board_game_analysis.modeling._util import as_float, mean_vector
 from board_game_analysis.modeling.design_space import (
     DESIGN_SPACE_FAMILY,
     SCHEMA_VERSION,
@@ -45,15 +46,16 @@ from board_game_analysis.modeling.design_space import (
     represent_situations,
     situation_table,
 )
+from board_game_analysis.modeling.logical_keys import (
+    CLUSTER_EVAL_LOGICAL_KEY,
+    DESIGN_SPACE_MODEL_LOGICAL_KEY,
+    GAME_REPR_LOGICAL_KEY,
+    NORMALIZER_LOGICAL_KEY,
+    NOVELTY_EVAL_LOGICAL_KEY,
+    PROJECTION_LOGICAL_KEY,
+    SITUATION_REPR_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.split import split_entities_by_game
-
-SITUATION_REPR_LOGICAL_KEY = "bga:repr/situations:v0"
-GAME_REPR_LOGICAL_KEY = "bga:repr/games:v0"
-DESIGN_SPACE_MODEL_LOGICAL_KEY = "bga:model/design-space:v0"
-NORMALIZER_LOGICAL_KEY = "bga:model/design-space-normalizer:v0"
-PROJECTION_LOGICAL_KEY = "bga:model/design-space-projection:v0"
-NOVELTY_EVAL_LOGICAL_KEY = "bga:evaluation/novelty:v0"
-CLUSTER_EVAL_LOGICAL_KEY = "bga:evaluation/clusters:v0"
 
 _CORPUS_NOTE = (
     "structural position in a learned representation space; not game "
@@ -506,7 +508,10 @@ def novelty_table(
     view: ViewName = "normalized",
     metric: DistanceMetric | None = None,
 ) -> tuple[NoveltyScore, ...]:
-    """Score games against training neighbors only. Test games are queries."""
+    """Structural kNN outlierness: mean distance to k train-game neighbors.
+
+    Every game is scored, but neighbor sets come from ``train_game_ids`` only.
+    """
     table = view_table(space, level="game", view=view)
     chosen = metric or space.metric
     if len(space.train_game_ids) < 2:
@@ -581,7 +586,7 @@ def between_game_dispersion(
     table = view_table(space, level="game", view=view)
     if len(table.vectors) < 2:
         return 0.0
-    centroid = _mean_vector(table.vectors)
+    centroid = mean_vector(table.vectors)
     total = sum(
         vector_distance(vector, centroid, metric="l2") for vector in table.vectors
     )
@@ -612,7 +617,12 @@ def run_design_space_experiment(
     seed: int = 0,
     created_at: datetime | None = None,
 ) -> DesignSpaceRun:
-    """Game-held-out design-space sanity evaluation."""
+    """Persist representation-space geometry with a game-safe train/test split.
+
+    The split partitions games for scale fit and reporting. Structural kNN
+    outlierness and exploratory clusters use train-fit, full-corpus query
+    semantics documented on ``novelty_table`` and ``cluster_games``.
+    """
     if not situations:
         raise ValueError("design-space experiment requires situations")
     game_ids = [situation.game.id for situation in situations]
@@ -817,7 +827,7 @@ def _neighborhood(
         raise KeyError(f"no {level} {target_id!r}") from exc
     row = neighbors.values[row_index]
     hits = tuple(
-        NeighborHit(entity_id=str(row[index]), distance=_as_float(row[k + index]))
+        NeighborHit(entity_id=str(row[index]), distance=as_float(row[k + index]))
         for index in range(k)
     )
     if any(hit.entity_id == target_id for hit in hits):
@@ -902,7 +912,7 @@ def _update_centroids(
         if not members:
             updated.append(previous[cluster])
             continue
-        updated.append(_mean_vector(members))
+        updated.append(mean_vector(members))
     return updated
 
 
@@ -957,17 +967,3 @@ def _mean_knn_distance(
     return sum(distance for distance, _ref_id in ranked[:k]) / float(k)
 
 
-def _as_float(value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        raise TypeError(f"expected numeric value, got {value!r}")
-    return float(value)
-
-
-def _mean_vector(vectors: Sequence[tuple[float, ...]]) -> tuple[float, ...]:
-    dim = len(vectors[0])
-    totals = [0.0] * dim
-    for vector in vectors:
-        for index, value in enumerate(vector):
-            totals[index] += value
-    count = float(len(vectors))
-    return tuple(total / count for total in totals)

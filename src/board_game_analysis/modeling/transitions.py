@@ -1,4 +1,4 @@
-"""Action-conditioned transition evaluation against observed next states."""
+"""Authored-transition model: action-conditioned next-state evaluation."""
 
 from __future__ import annotations
 
@@ -39,18 +39,19 @@ from board_game_analysis.modeling.encoders.conditioned import (
 )
 from board_game_analysis.modeling.encoders.state import StateBagEmbedder
 from board_game_analysis.modeling.examples import PairExample, examples_from_situations
+from board_game_analysis.modeling.logical_keys import (
+    ACTION_MODEL_LOGICAL_KEY,
+    ACTION_REPR_LOGICAL_KEY,
+    TRANSITION_EVAL_LOGICAL_KEY,
+    TRANSITION_MODEL_LOGICAL_KEY,
+    TRANSITION_REPR_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.measures import measure_situations
 from board_game_analysis.modeling.pairs import (
     pair_table_from_examples,
     transition_pairs_from_situations,
 )
 from board_game_analysis.modeling.split import split_entities_by_game
-
-TRANSITION_MODEL_LOGICAL_KEY = "bga:model/transition:v0"
-ACTION_MODEL_LOGICAL_KEY = "bga:model/action-embedder:v0"
-ACTION_REPR_LOGICAL_KEY = "bga:repr/actions:v0"
-TRANSITION_REPR_LOGICAL_KEY = "bga:repr/transitions:v0"
-TRANSITION_EVAL_LOGICAL_KEY = "bga:evaluation/transition:v0"
 
 SCALAR_COLUMNS = (
     "information_gain",
@@ -177,7 +178,7 @@ def run_transition_experiment(
     ridge: float = 1e-4,
     created_at: datetime | None = None,
 ) -> TransitionRun:
-    """Fit and evaluate a game-held-out action-conditioned baseline."""
+    """Fit and evaluate the authored-transition model with a game-safe split."""
     bundle = transition_pairs_from_situations(situations)
     if not bundle.pairs:
         raise ValueError("no actionable transitions in the supplied situations")

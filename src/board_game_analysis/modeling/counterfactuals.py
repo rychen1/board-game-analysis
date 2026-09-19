@@ -62,6 +62,11 @@ from board_game_analysis.modeling.interventions import (
     scalar_information_delta,
     substitute_action,
 )
+from board_game_analysis.modeling.logical_keys import (
+    COUNTERFACTUAL_EVAL_LOGICAL_KEY,
+    COUNTERFACTUAL_REPR_LOGICAL_KEY,
+    INTERVENTION_MODEL_LOGICAL_KEY,
+)
 from board_game_analysis.modeling.pairs import (
     ActionExample,
     pair_table_from_examples,
@@ -73,10 +78,6 @@ from board_game_analysis.modeling.sequences import (
 )
 from board_game_analysis.modeling.split import split_entities_by_game
 from board_game_analysis.modeling.transitions import target_states_for_pairs
-
-COUNTERFACTUAL_REPR_LOGICAL_KEY = "bga:repr/counterfactuals:v0"
-INTERVENTION_MODEL_LOGICAL_KEY = "bga:model/intervention:v0"
-COUNTERFACTUAL_EVAL_LOGICAL_KEY = "bga:evaluation/counterfactual:v0"
 
 _CORPUS_NOTE = (
     "fixture corpus is short authored moments; counterfactuals are model "

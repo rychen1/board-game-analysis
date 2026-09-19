@@ -21,8 +21,10 @@ The intended system will:
 7. Search, mutate, combine, and generate designs from that representation.
 8. Hand successful generated designs to a separate prototyping workflow.
 
-None of those pipelines are implemented yet. This repository currently holds
-foundational schemas, package boundaries, and tooling.
+Long-horizon items (rulebook extraction at scale, agent simulation, design
+search) are not implemented. **Play-structure modeling** (Phases 1–7),
+BGG metadata ingestion, and a first corpus descriptive analysis **are**
+implemented for short authored fixtures and the BGG metadata corpus.
 
 ## Three kinds of information
 
@@ -48,8 +50,9 @@ back to an API record or rulebook page.
 src/board_game_analysis/
   domain/         # Pydantic models (no FastAPI imports)
   ingestion/      # BGG XML API2 corpus pipeline
+  modeling/       # Phases 1–7: examples → representation space
+  analysis/       # measurement catalog + corpus descriptive v1
   extraction/     # placeholder for rule/mechanic extraction
-  analysis/       # placeholder for measurements
   simulation/     # placeholder for agent play
   storage/        # placeholder for PostgreSQL / DuckDB
   api/            # FastAPI app; health check only
@@ -83,8 +86,19 @@ Proposed measurements, evidence levels, and research questions:
 [docs/analysis.md](docs/analysis.md).
 
 Typed metric names live in `board_game_analysis.analysis` as
-`MeasurementSpec` entries. There is no analysis engine and no computed
-corpus scores.
+`MeasurementSpec` entries. Phase 1 `measure_situations` computes ontology
+metrics over authored fixtures. Corpus-level descriptive analysis runs via
+`bga-analyze` (see below).
+
+## Modeling (Phases 1–7)
+
+Play fragments in `tests/fixtures/games/` feed a modeling pipeline:
+examples → bag encodings → perspectives → authored-transition model →
+trajectories → interventions → **representation-space** geometry.
+
+Roadmap and phase docs: [docs/modeling-roadmap.md](docs/modeling-roadmap.md).
+Artifact keys: `board_game_analysis.modeling.logical_keys`.
+Adversarial audit: [docs/modeling-audit.md](docs/modeling-audit.md).
 
 ## Ingestion v0
 

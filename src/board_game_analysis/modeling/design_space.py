@@ -13,6 +13,12 @@ from ds_platform.modeling.representations import (
 from pydantic import BaseModel, ConfigDict
 
 from board_game_analysis.domain import PlaySituation
+from board_game_analysis.modeling._util import (
+    jaccard_distance,
+    known_item_ids,
+    mean_floats,
+    mean_vector,
+)
 from board_game_analysis.modeling.counterfactuals import COUNTERFACTUAL_REPR_LOGICAL_KEY
 from board_game_analysis.modeling.encoders.action import ActionBagEmbedder
 from board_game_analysis.modeling.encoders.observation import ObservationBagEmbedder
@@ -407,7 +413,7 @@ def represent_game(
         raise ValueError("situation feature schemas must match")
     ordered = tuple(sorted(situation_reps, key=lambda item: item.situation_id))
     vectors = [item.vector for item in ordered]
-    centroid = _mean_vector(vectors)
+    centroid = mean_vector(vectors)
     dispersion = _dispersion(vectors)
     spread = _pairwise_range(vectors)
     blocks = tuple(
@@ -565,11 +571,11 @@ def _perspective_block(
     values = {
         "n_observations": float(len(observations)),
         "n_observers": float(len({item.observer_id for item in observations})),
-        "mean_volume": _mean([item.volume for item in scalars]),
-        "mean_visibility": _mean([item.visibility for item in scalars]),
-        "mean_hidden": _mean([item.hidden for item in scalars]),
+        "mean_volume": mean_floats([item.volume for item in scalars]),
+        "mean_visibility": mean_floats([item.visibility for item in scalars]),
+        "mean_hidden": mean_floats([item.hidden for item in scalars]),
         "n_asymmetry_pairs": float(len(pairs)),
-        "mean_asymmetry": _mean(pairs) if pairs else 0.0,
+        "mean_asymmetry": mean_floats(pairs) if pairs else 0.0,
         "dispersion": _dispersion(vectors),
     }
     return FamilyBlock(
@@ -622,7 +628,7 @@ def _sequence_block(bundle: SequenceBundle, schema: FeatureSchema) -> FamilyBloc
     lengths = [float(len(item.steps)) for item in sequences]
     values = {
         "n_trajectories": float(len(sequences)),
-        "mean_steps": _mean(lengths),
+        "mean_steps": mean_floats(lengths),
         "max_steps": max(lengths),
     }
     return FamilyBlock(
@@ -644,10 +650,10 @@ def _intervention_block_from_summaries(
         return FamilyBlock(name="intervention", present=False)
     values = {
         "n_items": float(len(scoped)),
-        "mean_hide_visibility_delta": _mean(
+        "mean_hide_visibility_delta": mean_floats(
             [item.hide_visibility_delta for item in scoped]
         ),
-        "mean_reveal_visibility_delta": _mean(
+        "mean_reveal_visibility_delta": mean_floats(
             [item.reveal_visibility_delta for item in scoped]
         ),
     }
@@ -674,10 +680,10 @@ def _higher_order_block_from_pairs(
     n_asymmetric = count_asymmetric_pairs(scoped)
     values = {
         "n_pairs": float(len(scoped)),
-        "mean_distance": _mean([pair.distance for pair in scoped]),
-        "mean_only_focal": _mean([float(pair.n_only_focal) for pair in scoped]),
-        "mean_only_target": _mean([float(pair.n_only_target) for pair in scoped]),
-        "mean_shared": _mean([float(pair.n_shared_known) for pair in scoped]),
+        "mean_distance": mean_floats([pair.distance for pair in scoped]),
+        "mean_only_focal": mean_floats([float(pair.n_only_focal) for pair in scoped]),
+        "mean_only_target": mean_floats([float(pair.n_only_target) for pair in scoped]),
+        "mean_shared": mean_floats([float(pair.n_shared_known) for pair in scoped]),
         "n_asymmetric": float(n_asymmetric),
     }
     return FamilyBlock(
@@ -720,7 +726,7 @@ def _aggregate_family(
     if not present_blocks:
         return FamilyBlock(name=spec.name, present=False)
     values = {
-        column: _mean([block.value(column) for block in present_blocks])
+        column: mean_floats([block.value(column) for block in present_blocks])
         for column in spec.columns
     }
     sources = _unique(
@@ -740,26 +746,11 @@ def _asymmetry_pairs(observations: Sequence[ObservationExample]) -> list[float]:
         by_state.setdefault(example.state_id, []).append(example)
     scores: list[float] = []
     for group in by_state.values():
-        known = [_known_ids(example) for example in group]
+        known = [known_item_ids(example) for example in group]
         for left_index, left in enumerate(known):
             for right in known[left_index + 1 :]:
-                scores.append(_jaccard_distance(left, right))
+                scores.append(jaccard_distance(left, right))
     return scores
-
-
-def _known_ids(example: ObservationExample) -> set[str]:
-    return {
-        str(item["id"])
-        for item in example.items
-        if item.get("content_known") and item.get("id")
-    }
-
-
-def _jaccard_distance(left: set[str], right: set[str]) -> float:
-    if not left and not right:
-        return 0.0
-    union = left | right
-    return 1.0 - (len(left & right) / len(union))
 
 
 def _lookup_vectors(
@@ -801,24 +792,10 @@ def _ordered(
     return tuple((column, float(values[column])) for column in columns)
 
 
-def _mean_vector(vectors: Sequence[tuple[float, ...]]) -> tuple[float, ...]:
-    if not vectors:
-        raise ValueError("cannot average an empty vector set")
-    dim = len(vectors[0])
-    totals = [0.0] * dim
-    for vector in vectors:
-        if len(vector) != dim:
-            raise ValueError("vectors must share a dim")
-        for index, value in enumerate(vector):
-            totals[index] += value
-    count = float(len(vectors))
-    return tuple(total / count for total in totals)
-
-
 def _dispersion(vectors: Sequence[tuple[float, ...]]) -> float:
     if len(vectors) < 2:
         return 0.0
-    centroid = _mean_vector(vectors)
+    centroid = mean_vector(vectors)
     total = sum(vector_distance(vector, centroid, metric="l2") for vector in vectors)
     return total / len(vectors)
 
@@ -836,14 +813,8 @@ def _pairwise_range(vectors: Sequence[tuple[float, ...]]) -> float:
 def _centroid_norm(vectors: Sequence[tuple[float, ...]]) -> float:
     if not vectors:
         return 0.0
-    centroid = _mean_vector(vectors)
+    centroid = mean_vector(vectors)
     return math.sqrt(sum(value * value for value in centroid))
-
-
-def _mean(values: Sequence[float]) -> float:
-    if not values:
-        return 0.0
-    return sum(values) / len(values)
 
 
 def _unique(values: Sequence[str]) -> tuple[str, ...]:

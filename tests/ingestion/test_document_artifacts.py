@@ -104,7 +104,7 @@ def test_document_record_cites_raw_and_game_schema(tmp_path: Path) -> None:
         game_id=game.id,
     )
     assert record.kind is ArtifactKind.DOCUMENT
-    assert record.inputs == [raw_pid]
+    assert list(record.inputs) == [raw_pid]
     assert record.payload_id == pid == payload_id(game_json)
     assert record.logical_key == game_document_logical_key("bgg-13")
     schema_path = default_game_schema_path()

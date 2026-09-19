@@ -51,6 +51,9 @@ from board_game_analysis.modeling.pairs import (
     pair_table_from_examples,
     transition_pairs_from_situations,
 )
+from board_game_analysis.modeling.scalar_eval import (
+    scalar_predictions_from_representations,
+)
 from board_game_analysis.modeling.split import split_entities_by_game
 
 SCALAR_COLUMNS = (
@@ -139,6 +142,7 @@ def evaluate_transitions(
     notes = (
         "copy-state baseline compared against action-conditioned model",
         "targets are encoded observed to-states only",
+        "scalar metrics score train-fit ridge probes from model representation vectors",
     )
     representation = EvaluationReport(
         metrics={
@@ -218,25 +222,35 @@ def run_transition_experiment(
 
     model = LinearConditionedEncoder(ridge=ridge)
     model.set_targets(train_tgt)
-    model.fit(train_ctx, train_cond, [pair.entity_id for pair in train_pairs])
-    predicted = model.encode(
-        test_ctx, test_cond, [pair.entity_id for pair in test_pairs]
-    )
+    train_pair_ids = [pair.entity_id for pair in train_pairs]
+    test_pair_ids = [pair.entity_id for pair in test_pairs]
+    model.fit(train_ctx, train_cond, train_pair_ids)
+    train_predicted = model.encode(train_ctx, train_cond, train_pair_ids)
+    predicted = model.encode(test_ctx, test_cond, test_pair_ids)
     copy_model = CopyStateEncoder()
-    copy_predicted = copy_model.encode(
-        test_ctx, test_cond, [pair.entity_id for pair in test_pairs]
-    )
+    copy_predicted = copy_model.encode(test_ctx, test_cond, test_pair_ids)
 
     measurements = measure_situations(situations)
+    scalar_source = test_tgt.source_payload_ids[0]
+    train_scalar_true = transition_scalar_table(
+        train_pairs, measurements, source_payload_id=scalar_source
+    )
     scalar_true = transition_scalar_table(
-        test_pairs, measurements, source_payload_id=test_tgt.source_payload_ids[0]
+        test_pairs, measurements, source_payload_id=scalar_source
+    )
+    scalar_pred = scalar_predictions_from_representations(
+        train_predicted,
+        predicted,
+        train_scalar_true,
+        scalar_true,
+        ridge=ridge,
     )
     evaluation = evaluate_transitions(
         predicted,
         copy_predicted,
         test_tgt,
         scalar_true=scalar_true,
-        scalar_pred=_zero_change_table(scalar_true),
+        scalar_pred=scalar_pred,
         skipped=bundle.skipped,
     )
 
@@ -416,19 +430,6 @@ def _scalar_at(
         ):
             return float(item.value)
     return None
-
-
-def _zero_change_table(table: FeatureTable) -> FeatureTable:
-    values = tuple(
-        tuple(0.0 if isinstance(cell, (int, float)) else None for cell in row)
-        for row in table.values
-    )
-    return FeatureTable(
-        entity_ids=table.entity_ids,
-        columns=table.columns,
-        values=values,
-        source_payload_ids=table.source_payload_ids,
-    )
 
 
 def _player_count(

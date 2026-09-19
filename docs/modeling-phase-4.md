@@ -18,7 +18,9 @@ pair bundles, not game-keyed last-wins maps.
 
 - game-safe split via `split_entities_by_game`
 - representation MSE against observed next states
-- optional scalar deltas from Phase 1 measurements
+- optional scalar deltas from Phase 1 measurements, scored via train-only
+  ridge probes from the model's predicted representation vectors (not a
+  zero-change baseline)
 
 ## Artifacts
 

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import sys
 from collections.abc import Sequence
+
+from ds_platform.hashing import payload_id
 
 from board_game_analysis.modeling.examples import ObservationExample
 
@@ -46,3 +50,27 @@ def known_item_ids(example: ObservationExample) -> set[str]:
         for item in example.items
         if item.get("content_known") and item.get("id")
     }
+
+
+def composite_source_payload_id(payload_ids: Sequence[str]) -> str:
+    """Identity for a row derived from one or more upstream encoder payloads."""
+    unique = sorted({item for item in payload_ids if item})
+    if not unique:
+        raise ValueError("composite lineage requires at least one payload id")
+    if len(unique) == 1:
+        return unique[0]
+    encoded = json.dumps(unique, separators=(",", ":")).encode("utf-8")
+    return payload_id(encoded)
+
+
+def modeling_software_versions() -> tuple[tuple[str, str], ...]:
+    """Runtime versions recorded on persisted experiment manifests."""
+    import importlib.metadata
+
+    versions: list[tuple[str, str]] = [("python", sys.version.split()[0])]
+    for distribution in ("board-game-analysis", "ds-platform"):
+        try:
+            versions.append((distribution, importlib.metadata.version(distribution)))
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    return tuple(versions)

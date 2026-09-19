@@ -27,7 +27,12 @@ from ds_platform.modeling.spec import GeometrySpec, SplitSpec, spec_config_hash
 from pydantic import BaseModel, ConfigDict
 
 from board_game_analysis.domain import PlaySituation
-from board_game_analysis.modeling._util import as_float, mean_vector
+from board_game_analysis.modeling._util import (
+    as_float,
+    mean_vector,
+    modeling_software_versions,
+)
+from board_game_analysis.modeling.artifacts import store_examples
 from board_game_analysis.modeling.design_space import (
     DESIGN_SPACE_FAMILY,
     SCHEMA_VERSION,
@@ -46,6 +51,7 @@ from board_game_analysis.modeling.design_space import (
     represent_situations,
     situation_table,
 )
+from board_game_analysis.modeling.examples import examples_from_situations
 from board_game_analysis.modeling.logical_keys import (
     CLUSTER_EVAL_LOGICAL_KEY,
     DESIGN_SPACE_MODEL_LOGICAL_KEY,
@@ -199,11 +205,18 @@ class ClusterAssignment(_FrozenModel):
 
 
 class DesignSpaceManifest(_FrozenModel):
-    """Reproducibility recipe persisted with the design-space model artifact."""
+    """Audit recipe persisted with the design-space model artifact.
+
+    Supports establishing what generated persisted Phase 7 artifacts
+    (auditability). Exact byte-identical replay across Python versions is
+    not guaranteed at v0 — see ``docs/modeling-audit-reproducibility.md``.
+    """
 
     family: str
     feature_schema: FeatureSchema
     metric: DistanceMetric
+    split_spec: SplitSpec
+    config_hash: str
     train_game_ids: tuple[str, ...]
     test_game_ids: tuple[str, ...]
     situation_ids: tuple[str, ...]
@@ -216,10 +229,14 @@ class DesignSpaceManifest(_FrozenModel):
     cluster_seed: int | None = None
     cluster_family: str = "kmeans-v0"
     phase6_logical_keys: tuple[str, ...] = ()
+    input_examples_payload_id: str | None = None
     situation_payload_id: str | None = None
     game_payload_id: str | None = None
     normalizer_payload_id: str | None = None
     projection_payload_id: str | None = None
+    novelty_eval_payload_id: str | None = None
+    cluster_eval_payload_id: str | None = None
+    software_versions: tuple[tuple[str, str], ...] = ()
 
 
 class DesignSpace(_FrozenModel):
@@ -682,6 +699,13 @@ def run_design_space_experiment(
         },
     )
     run_with_hash = run.model_copy(update={"config_hash": spec_config_hash(spec)})
+    examples = examples_from_situations(situations)
+    examples_pid, _examples_rid = store_examples(
+        store,
+        examples,
+        run=run_with_hash,
+        created_at=created_at,
+    )
     sit_pid, _sit_rid = put_feature_dataset(
         store,
         representation_payload_bytes(space.canonical_situations),
@@ -720,39 +744,6 @@ def run_design_space_experiment(
             logical_key=PROJECTION_LOGICAL_KEY,
             created_at=created_at,
         )
-    manifest = DesignSpaceManifest(
-        family=DESIGN_SPACE_FAMILY,
-        feature_schema=space.feature_schema,
-        metric=metric,
-        train_game_ids=space.train_game_ids,
-        test_game_ids=space.test_game_ids,
-        situation_ids=tuple(sorted(item.situation_id for item in space.situations)),
-        game_ids=tuple(sorted(item.game_id for item in space.games)),
-        encoder_dim=space.layer.encoder_dim,
-        encoder_family=space.layer.encoder_family,
-        n_components=n_components,
-        n_clusters=n_clusters,
-        novelty_ks=tuple(novelty_ks),
-        cluster_seed=seed,
-        cluster_family=DeterministicKMeans.family,
-        phase6_logical_keys=space.phase6.source_logical_keys,
-        situation_payload_id=sit_pid,
-        game_payload_id=game_pid,
-        normalizer_payload_id=norm_pid,
-        projection_payload_id=projection_pid,
-    )
-    model_inputs = [sit_pid, game_pid, norm_pid]
-    if projection_pid is not None:
-        model_inputs.append(projection_pid)
-    model_pid, _model_rid = put_model_artifact(
-        store,
-        pickle.dumps(manifest),
-        run=run_with_hash,
-        inputs=model_inputs,
-        media_type="application/octet-stream",
-        logical_key=DESIGN_SPACE_MODEL_LOGICAL_KEY,
-        created_at=created_at,
-    )
     novelty_pid, _nov_rid = put_evaluation_artifact(
         store,
         evaluation.novelty,
@@ -772,6 +763,45 @@ def run_design_space_experiment(
         subject_payload_id=game_pid,
         inputs=cluster_inputs,
         logical_key=CLUSTER_EVAL_LOGICAL_KEY,
+        created_at=created_at,
+    )
+    manifest = DesignSpaceManifest(
+        family=DESIGN_SPACE_FAMILY,
+        feature_schema=space.feature_schema,
+        metric=metric,
+        split_spec=split,
+        config_hash=run_with_hash.config_hash or spec_config_hash(spec),
+        train_game_ids=space.train_game_ids,
+        test_game_ids=space.test_game_ids,
+        situation_ids=tuple(sorted(item.situation_id for item in space.situations)),
+        game_ids=tuple(sorted(item.game_id for item in space.games)),
+        encoder_dim=space.layer.encoder_dim,
+        encoder_family=space.layer.encoder_family,
+        n_components=n_components,
+        n_clusters=n_clusters,
+        novelty_ks=tuple(novelty_ks),
+        cluster_seed=seed,
+        cluster_family=DeterministicKMeans.family,
+        phase6_logical_keys=space.phase6.source_logical_keys,
+        input_examples_payload_id=examples_pid,
+        situation_payload_id=sit_pid,
+        game_payload_id=game_pid,
+        normalizer_payload_id=norm_pid,
+        projection_payload_id=projection_pid,
+        novelty_eval_payload_id=novelty_pid,
+        cluster_eval_payload_id=cluster_pid,
+        software_versions=modeling_software_versions(),
+    )
+    model_inputs = [examples_pid, sit_pid, game_pid, norm_pid, novelty_pid, cluster_pid]
+    if projection_pid is not None:
+        model_inputs.append(projection_pid)
+    model_pid, _model_rid = put_model_artifact(
+        store,
+        pickle.dumps(manifest),
+        run=run_with_hash,
+        inputs=model_inputs,
+        media_type="application/octet-stream",
+        logical_key=DESIGN_SPACE_MODEL_LOGICAL_KEY,
         created_at=created_at,
     )
     return DesignSpaceRun(

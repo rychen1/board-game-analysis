@@ -225,11 +225,21 @@ source PlaySituation inputs (or persisted Phase 1 example artifacts)
 + RunContext config hash
 ```
 
-`DesignSpaceManifest` records the recipe (schema, train/test ids,
-encoder dim, metric, clustering/novelty params, Phase 6 logical keys).
-It is sufficient to understand what a result means. Exact vector replay
-on a cold machine also requires the original situation inputs and code
-version pin — the manifest does not embed full Phase 1–5 artifact bytes.
+`DesignSpaceManifest` records the audit recipe: split spec, config hash,
+Phase 1 examples payload id, representation/normalizer/projection payload
+ids, evaluation artifact ids, Phase 6 logical keys, and runtime software
+versions. It is sufficient to establish **what happened** (auditability).
+Re-running the computation (reproducibility) requires fetching referenced
+payloads and compatible code; **byte-identical replay** across Python
+versions is not guaranteed at v0.
+
+Phase 7 `RepresentationTable` rows carry `source_payload_ids` derived
+from upstream encoder payload lineage (state, observation, action tables),
+not entity or game ids. Multi-source rows use a composite payload id.
+
+Game holdout splits canonicalize unique game ids lexicographically before
+seeded selection, so incidental input order does not change train/test
+assignment.
 
 Aggregation sorts situations by id. Feature column order is the schema
 order.

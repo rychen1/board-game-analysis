@@ -107,4 +107,4 @@ def test_store_examples_writes_dataset_artifact(tmp_path) -> None:
     record = json.loads(store.get(record_id).decode("utf-8"))
     assert record["kind"] == ArtifactKind.DATASET
     assert record["logical_key"] == EXAMPLES_LOGICAL_KEY
-    assert record["inputs"] == []
+    assert record.get("inputs", []) == []

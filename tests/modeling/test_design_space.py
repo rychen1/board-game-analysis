@@ -195,7 +195,7 @@ def test_zero_variance_is_explicit() -> None:
         entity_ids=("a", "b"),
         vectors=((4.0, 1.0), (4.0, 3.0)),
         dim=2,
-        source_payload_ids=("a", "b"),
+        source_payload_ids=("a" * 64, "b" * 64),
     )
     fitted = fit_standardizer(table, ("a", "b"), ("const", "var"))
     assert fitted.zero_variance_columns == ("const",)
@@ -306,7 +306,7 @@ def test_novelty_is_structural_and_multiscale() -> None:
         entity_ids=("dense-a", "dense-b", "far"),
         vectors=((0.0, 0.0), (0.1, 0.0), (8.0, 8.0)),
         dim=2,
-        source_payload_ids=("dense-a", "dense-b", "far"),
+        source_payload_ids=("a" * 64, "b" * 64, "c" * 64),
     )
     scores = novelty_scores(isolated, k=1, metric="l2")
     by_id: dict[str, float] = {}
@@ -395,6 +395,19 @@ def test_run_persists_and_stays_game_safe(tmp_path) -> None:
     assert manifest.n_clusters == 3
     assert manifest.cluster_seed == 0
     assert manifest.normalizer_payload_id == result.normalizer_payload_id
+    assert manifest.split_spec == _split()
+    assert manifest.config_hash
+    assert manifest.input_examples_payload_id
+    assert manifest.novelty_eval_payload_id == result.novelty_payload_id
+    assert manifest.cluster_eval_payload_id == result.cluster_payload_id
+    assert manifest.software_versions
+    for payload_id in (
+        *result.space.canonical_situations.source_payload_ids,
+        *result.space.canonical_games.source_payload_ids,
+    ):
+        assert len(payload_id) == 64
+        assert payload_id.islower()
+        assert all(ch in "0123456789abcdef" for ch in payload_id)
     situations = represent_situations(result.space.layer, phase6=result.space.phase6)
     assert [item.situation_id for item in situations] == [
         item.situation_id for item in result.space.situations

@@ -72,7 +72,7 @@ def test_observation_labels_do_not_bleed_across_situations() -> None:
     labels = labels_for_observations(
         measurements,
         observations,
-        source_payload_ids=["m"] * len(observations),
+        source_payload_ids=["a" * 64] * len(observations),
     )
     by_situation = {
         observation.situation_id: labels.values[index][0]

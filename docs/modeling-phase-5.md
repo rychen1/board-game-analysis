@@ -63,7 +63,9 @@ A prefix is therefore not an unordered bag of states.
 `split_sequences_by_game` reuses `split_entities_by_game`. Every prefix
 of a trajectory carries that trajectory's `game_id`. A game cannot appear
 on both sides of the split, and the steps of one trajectory stay
-together.
+together. Unique game ids are sorted lexicographically before seeded
+holdout selection, so train/test assignment does not depend on situation
+input order.
 
 Random step-level splits are not used.
 
@@ -99,4 +101,7 @@ not used here.
 
 Scalar diagnostics (`information_volume`, `hidden_information`,
 `available_decision_count` at the target state) are reported only where
-Phase 1 already computed them. Missing values stay missing.
+Phase 1 already computed them. Missing values stay missing. Scalar RMSE/MAE
+scores train-only ridge probes mapping the prefix model's predicted vectors
+to those scalars; they measure the sequence model, not a zero-change
+baseline.

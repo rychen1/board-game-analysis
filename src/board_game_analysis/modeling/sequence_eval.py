@@ -53,6 +53,9 @@ from board_game_analysis.modeling.logical_keys import (
 )
 from board_game_analysis.modeling.measures import measure_situations
 from board_game_analysis.modeling.pairs import transition_pairs_from_situations
+from board_game_analysis.modeling.scalar_eval import (
+    scalar_predictions_from_representations,
+)
 from board_game_analysis.modeling.sequences import (
     PrefixExample,
     prefixes_from_situations,
@@ -167,6 +170,7 @@ def evaluate_sequences(
         "last-state and Phase 4 transition baselines compared against "
         "the prefix sequence model",
         "targets are encoded observed to-states of prefix steps only",
+        "scalar metrics score train-fit ridge probes from model representation vectors",
         _CORPUS_NOTE,
     )
     representation = EvaluationReport(
@@ -284,6 +288,7 @@ def run_sequence_experiment(
     predictor = LinearSequencePredictor(ridge=ridge)
     predictor.set_targets(train_y)
     predictor.fit(train_x, train_ids)
+    train_predicted = predictor.encode(train_x, train_ids)
     predicted = predictor.encode(test_x, test_ids)
 
     last_predicted = LastStatePredictor().encode(test_prefixes, z_states)
@@ -292,8 +297,19 @@ def run_sequence_experiment(
     )
 
     measurements = measure_situations(situations)
+    scalar_source = test_y.source_payload_ids[0]
+    train_scalar_true = sequence_scalar_table(
+        train_prefixes, measurements, source_payload_id=scalar_source
+    )
     scalar_true = sequence_scalar_table(
-        test_prefixes, measurements, source_payload_id=test_y.source_payload_ids[0]
+        test_prefixes, measurements, source_payload_id=scalar_source
+    )
+    scalar_pred = scalar_predictions_from_representations(
+        train_predicted,
+        predicted,
+        train_scalar_true,
+        scalar_true,
+        ridge=ridge,
     )
     evaluation = evaluate_sequences(
         predicted,
@@ -301,7 +317,7 @@ def run_sequence_experiment(
         transition_predicted,
         test_y,
         scalar_true=scalar_true,
-        scalar_pred=_zero_change_table(scalar_true),
+        scalar_pred=scalar_pred,
         skipped=skipped,
         n_trajectories=len(bundle.sequences),
         train_game_ids=train_games,
@@ -441,16 +457,3 @@ def _mean_at(
     if not values:
         return None
     return sum(values) / len(values)
-
-
-def _zero_change_table(table: FeatureTable) -> FeatureTable:
-    values = tuple(
-        tuple(0.0 if isinstance(cell, (int, float)) else None for cell in row)
-        for row in table.values
-    )
-    return FeatureTable(
-        entity_ids=table.entity_ids,
-        columns=table.columns,
-        values=values,
-        source_payload_ids=table.source_payload_ids,
-    )

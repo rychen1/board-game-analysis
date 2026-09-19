@@ -105,7 +105,7 @@ def test_quality_record_cites_corpus_and_not_the_dataset_envelope(
     assert "duplicate_ids" not in dumped_quality
     assert "n_jsonl_records" not in dumped_quality
     dumped_dataset = dataset.model_dump()
-    assert dumped_dataset["related"] == []
+    assert list(dumped_dataset["related"]) == []
     assert "quality" not in dumped_dataset
     assert store.get(corpus_pid) == jsonl
     assert store.get(quality_pid) == report_bytes

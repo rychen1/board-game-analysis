@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import pytest
 from ds_platform import ArtifactKind, Environment, LocalStore, RunContext
 
+from board_game_analysis.modeling._util import composite_source_payload_id
 from board_game_analysis.modeling.encoders import ObservationBagEmbedder
 from board_game_analysis.modeling.examples import examples_from_situation
 from board_game_analysis.modeling.higher_order import (
@@ -65,17 +66,31 @@ def test_higher_order_is_directional() -> None:
     alice = _at(observations, ALICE, S0)
     bob = _at(observations, BOB, S0)
     index = {entity_id: i for i, entity_id in enumerate(z_obs.entity_ids)}
+    ab_source = composite_source_payload_id(
+        [
+            z_obs.source_payload_ids[index[alice.entity_id]],
+            z_obs.source_payload_ids[index[bob.entity_id]],
+        ]
+    )
+    ba_source = composite_source_payload_id(
+        [
+            z_obs.source_payload_ids[index[bob.entity_id]],
+            z_obs.source_payload_ids[index[alice.entity_id]],
+        ]
+    )
     ab = higher_order_perspective(
         alice,
         bob,
         z_obs.vectors[index[alice.entity_id]],
         z_obs.vectors[index[bob.entity_id]],
+        source_payload_id=ab_source,
     )
     ba = higher_order_perspective(
         bob,
         alice,
         z_obs.vectors[index[bob.entity_id]],
         z_obs.vectors[index[alice.entity_id]],
+        source_payload_id=ba_source,
     )
     assert ab.focal_observer_id == ALICE
     assert ab.target_observer_id == BOB
@@ -89,6 +104,7 @@ def test_higher_order_is_directional() -> None:
         bob,
         z_obs.vectors[index[alice.entity_id]],
         z_obs.vectors[index[bob.entity_id]],
+        source_payload_id=ab_source,
     )
     assert ab.vector == again.vector
 
@@ -116,6 +132,7 @@ def test_same_state_pairs_only() -> None:
             alice_s1,
             z_obs.vectors[index[alice_s0.entity_id]],
             z_obs.vectors[index[alice_s1.entity_id]],
+            source_payload_id="a" * 64,
         )
 
 
@@ -172,6 +189,7 @@ def test_perspective_intervention_changes_a_about_b() -> None:
         bob,
         intervention,
         encoder,
+        z_obs,
         z_obs.vectors[index[alice.entity_id]],
         z_obs.vectors[index[bob.entity_id]],
     )

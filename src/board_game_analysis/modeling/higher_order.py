@@ -28,7 +28,10 @@ from ds_platform.modeling.representations import (
 from ds_platform.modeling.spec import PerspectiveSpec, spec_config_hash
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from board_game_analysis.modeling._util import known_item_ids
+from board_game_analysis.modeling._util import (
+    composite_source_payload_id,
+    known_item_ids,
+)
 from board_game_analysis.modeling.encoders.observation import ObservationBagEmbedder
 from board_game_analysis.modeling.examples import ObservationExample
 from board_game_analysis.modeling.interventions import (
@@ -109,6 +112,7 @@ class HigherOrderPerspective(_FrozenModel):
     n_shared_known: int
     n_hidden_both: int
     origin: Literal["observed", "counterfactual"]
+    source_payload_id: str
     notes: tuple[str, ...] = ()
 
     def to_mapping(self) -> dict[str, Any]:
@@ -144,6 +148,7 @@ def higher_order_perspective(
     z_focal: tuple[float, ...],
     z_target: tuple[float, ...],
     *,
+    source_payload_id: str,
     origin: Literal["observed", "counterfactual"] = "observed",
 ) -> HigherOrderPerspective:
     """Build A_about_B from two same-state observations.
@@ -194,6 +199,7 @@ def higher_order_perspective(
         n_shared_known=len(shared),
         n_hidden_both=len(hidden_both),
         origin=origin,
+        source_payload_id=source_payload_id,
         notes=(_CORPUS_NOTE,),
     )
 
@@ -239,9 +245,18 @@ def higher_order_pairs(
                     raise KeyError(
                         f"missing observation representation for {state_id!r}"
                     ) from exc
+                focal_payload = z_obs.source_payload_ids[index[focal.entity_id]]
+                target_payload = z_obs.source_payload_ids[index[target.entity_id]]
                 pairs.append(
                     higher_order_perspective(
-                        focal, target, z_focal, z_target, origin=origin
+                        focal,
+                        target,
+                        z_focal,
+                        z_target,
+                        source_payload_id=composite_source_payload_id(
+                            [focal_payload, target_payload]
+                        ),
+                        origin=origin,
                     )
                 )
     return tuple(pairs)
@@ -293,7 +308,7 @@ def higher_order_table(
         entity_ids=tuple(pair.entity_id for pair in pairs),
         vectors=tuple(pair.vector for pair in pairs),
         dim=len(pairs[0].vector),
-        source_payload_ids=tuple(pair.entity_id for pair in pairs),
+        source_payload_ids=tuple(pair.source_payload_id for pair in pairs),
     )
 
 
@@ -343,14 +358,25 @@ def intervene_higher_order(
     target: ObservationExample,
     intervention: Intervention,
     encoder: ObservationBagEmbedder,
+    z_obs: RepresentationTable,
     z_focal: tuple[float, ...],
     z_target: tuple[float, ...],
     *,
     observations: Sequence[ObservationExample] = (),
 ) -> tuple[HigherOrderPerspective, HigherOrderPerspective, RepresentationTable]:
     """Compare A_about_B before and after an intervention on B's view."""
+    index = {entity_id: idx for idx, entity_id in enumerate(z_obs.entity_ids)}
+    focal_payload = z_obs.source_payload_ids[index[focal.entity_id]]
+    target_payload = z_obs.source_payload_ids[index[target.entity_id]]
     actual = higher_order_perspective(
-        focal, target, z_focal, z_target, origin="observed"
+        focal,
+        target,
+        z_focal,
+        z_target,
+        source_payload_id=composite_source_payload_id(
+            [focal_payload, target_payload]
+        ),
+        origin="observed",
     )
     applied: InterventionResult = apply_intervention(
         target, intervention, observations=observations
@@ -366,6 +392,9 @@ def intervene_higher_order(
         applied.result_observation,
         z_focal,
         encoded.vectors[0],
+        source_payload_id=composite_source_payload_id(
+            [focal_payload, encoded.source_payload_ids[0]]
+        ),
         origin="counterfactual",
     )
     actual_table = higher_order_table(

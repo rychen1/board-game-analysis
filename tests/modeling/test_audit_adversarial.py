@@ -198,11 +198,12 @@ def _situation(
 def _table(
     entity_ids: tuple[str, ...], values: tuple[float, ...]
 ) -> RepresentationTable:
+    source = "a" * 64
     return RepresentationTable(
         entity_ids=entity_ids,
         vectors=tuple((value,) for value in values),
         dim=1,
-        source_payload_ids=entity_ids,
+        source_payload_ids=tuple(source for _ in entity_ids),
     )
 
 
@@ -534,17 +535,21 @@ def test_higher_order_direction_and_path_cycle() -> None:
         if example.observer_id == BOB and example.state_id == S0
     )
     index = {entity_id: i for i, entity_id in enumerate(z_obs.entity_ids)}
+    ab_source = z_obs.source_payload_ids[index[alice.entity_id]]
+    ba_source = z_obs.source_payload_ids[index[bob.entity_id]]
     ab = higher_order_perspective(
         alice,
         bob,
         z_obs.vectors[index[alice.entity_id]],
         z_obs.vectors[index[bob.entity_id]],
+        source_payload_id=ab_source,
     )
     ba = higher_order_perspective(
         bob,
         alice,
         z_obs.vectors[index[bob.entity_id]],
         z_obs.vectors[index[alice.entity_id]],
+        source_payload_id=ba_source,
     )
     assert ab.vector != ba.vector
     assert ab.entity_id != ba.entity_id

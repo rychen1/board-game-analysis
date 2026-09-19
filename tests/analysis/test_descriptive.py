@@ -265,7 +265,7 @@ def test_report_and_artifacts_cite_corpus_payload(tmp_path: Path) -> None:
     record = _record_for_payload(store, result.report_payload_id)
     assert record is not None
     assert record.kind is ArtifactKind.DATASET
-    assert record.inputs == [result.corpus_payload_id]
+    assert list(record.inputs) == [result.corpus_payload_id]
     assert record.logical_key == "bga:analysis/corpus-descriptive:v1"
     assert record.contract_ref is not None
     findings = result.findings_path.read_text(encoding="utf-8")

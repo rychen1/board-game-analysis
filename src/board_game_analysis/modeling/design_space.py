@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict
 
 from board_game_analysis.domain import PlaySituation
 from board_game_analysis.modeling._util import (
+    composite_source_payload_id,
     jaccard_distance,
     known_item_ids,
     mean_floats,
@@ -176,6 +177,7 @@ class SituationRepresentation(_FrozenModel):
     vector: tuple[float, ...]
     feature_schema: FeatureSchema
     source_artifacts: tuple[str, ...]
+    source_payload_id: str
     notes: tuple[str, ...] = ()
 
     def family(self, name: str) -> FamilyBlock:
@@ -199,6 +201,7 @@ class GameRepresentation(_FrozenModel):
     situation_centroid: tuple[float, ...]
     feature_schema: FeatureSchema
     source_artifacts: tuple[str, ...]
+    source_payload_id: str
     notes: tuple[str, ...] = ()
 
     def family(self, name: str) -> FamilyBlock:
@@ -374,6 +377,7 @@ def represent_situation(
         + list(hop.source_entity_ids)
         + list(resolved.source_logical_keys)
     )
+    lineage = _situation_encoder_payload_ids(examples, pairs, layer)
     return SituationRepresentation(
         entity_id=situation_id,
         game_id=situation.game.id,
@@ -382,6 +386,7 @@ def represent_situation(
         vector=vector,
         feature_schema=chosen,
         source_artifacts=sources,
+        source_payload_id=composite_source_payload_id(lineage),
         notes=(_CORPUS_NOTE,),
     )
 
@@ -443,6 +448,9 @@ def represent_game(
         situation_centroid=centroid,
         feature_schema=schema,
         source_artifacts=sources,
+        source_payload_id=composite_source_payload_id(
+            [item.source_payload_id for item in ordered]
+        ),
         notes=(_CORPUS_NOTE,),
     )
 
@@ -481,11 +489,19 @@ def flatten_families(
 def situation_table(
     items: Sequence[SituationRepresentation],
 ) -> RepresentationTable:
-    return _table([item.entity_id for item in items], [item.vector for item in items])
+    return _table(
+        [item.entity_id for item in items],
+        [item.vector for item in items],
+        [item.source_payload_id for item in items],
+    )
 
 
 def game_table(items: Sequence[GameRepresentation]) -> RepresentationTable:
-    return _table([item.game_id for item in items], [item.vector for item in items])
+    return _table(
+        [item.game_id for item in items],
+        [item.vector for item in items],
+        [item.source_payload_id for item in items],
+    )
 
 
 def external_metadata(situation: PlaySituation) -> dict[str, Any]:
@@ -779,6 +795,34 @@ def _source_ids(
     )
 
 
+def _situation_encoder_payload_ids(
+    examples: ExampleBundle,
+    pairs: TransitionPairBundle,
+    layer: PlayLayer,
+) -> tuple[str, ...]:
+    """Upstream encoder payload ids that contributed to one situation row."""
+    payload_ids: list[str] = []
+    for table, entity_ids in (
+        (layer.z_states, [item.entity_id for item in examples.states]),
+        (
+            layer.z_observations,
+            [item.entity_id for item in examples.observations],
+        ),
+        (layer.z_actions, [item.entity_id for item in pairs.actions]),
+    ):
+        index = {entity_id: idx for idx, entity_id in enumerate(table.entity_ids)}
+        for entity_id in entity_ids:
+            payload_ids.append(table.source_payload_ids[index[entity_id]])
+    return tuple(payload_ids)
+
+
+def _table_payload_ids(
+    table: RepresentationTable, entity_ids: Sequence[str]
+) -> tuple[str, ...]:
+    index = {entity_id: idx for idx, entity_id in enumerate(table.entity_ids)}
+    return tuple(table.source_payload_ids[index[entity_id]] for entity_id in entity_ids)
+
+
 def _columns(schema: FeatureSchema, name: str) -> tuple[str, ...]:
     for family in schema.families:
         if family.name == name:
@@ -826,7 +870,9 @@ def _unique(values: Sequence[str]) -> tuple[str, ...]:
 
 
 def _table(
-    entity_ids: Sequence[str], vectors: Sequence[tuple[float, ...]]
+    entity_ids: Sequence[str],
+    vectors: Sequence[tuple[float, ...]],
+    source_payload_ids: Sequence[str],
 ) -> RepresentationTable:
     if not entity_ids:
         return RepresentationTable(
@@ -835,11 +881,13 @@ def _table(
             dim=0,
             source_payload_ids=(),
         )
+    if len(source_payload_ids) != len(entity_ids):
+        raise ValueError("source_payload_ids length must match entity_ids length")
     return RepresentationTable(
         entity_ids=tuple(entity_ids),
         vectors=tuple(vectors),
         dim=len(vectors[0]),
-        source_payload_ids=tuple(entity_ids),
+        source_payload_ids=tuple(source_payload_ids),
     )
 
 

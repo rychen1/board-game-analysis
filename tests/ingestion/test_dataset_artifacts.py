@@ -103,7 +103,7 @@ def test_dataset_record_inputs_are_document_ids_not_raw(tmp_path: Path) -> None:
     )
     assert record.kind is ArtifactKind.DATASET
     assert record.logical_key == CORPUS_LOGICAL_KEY == "bga:corpus:v0"
-    assert record.inputs == [document_pid]
+    assert list(record.inputs) == [document_pid]
     assert raw_pid not in record.inputs
     assert record.payload_id == dataset_pid == payload_id(jsonl)
     assert document.kind is ArtifactKind.DOCUMENT

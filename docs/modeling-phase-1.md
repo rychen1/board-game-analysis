@@ -14,8 +14,13 @@ records that later phases consume without re-parsing domain objects.
 - `SequenceExample` — situation states in list order; `steps` empty here
 
 Entity ids are **situation-scoped** (`situation_id_for` disambiguates
-multiple fragments of the same game). See `examples.py` helpers:
-`state_entity_id`, `observation_entity_id`, `pair_entity_id`, etc.
+multiple fragments of the same game). A situation id has the form
+`{topology}@{digest}` where `topology` is `{game_id}:{sorted_state_ids}|{sorted_transition_ids}`
+and `digest` is an 8-character content hash of state payloads,
+observations, actions, transitions, and decision spaces. Two moments that
+reuse the same local ids therefore stay distinct. See `examples.py`
+helpers: `state_entity_id`, `observation_entity_id`, `pair_entity_id`,
+etc.
 
 Persisted as `bga:examples/play-fixtures:v0`.
 

@@ -12,6 +12,10 @@ Evidence date: 2026-09-19. Pre-audit suite: 245 passing tests at `5e67179`.
 xfail**. Full modeling suite: **289 passing**. See [Fixes
 applied](#fixes-applied) below.
 
+**Final audit Option A (2026-09-19):** C-F1–C-F6 from
+[`modeling-audit-final.md`](modeling-audit-final.md) are fixed. Suite:
+**297 passing**. Permanent probes in `tests/modeling/test_audit_final_adversarial.py`.
+
 ## Executive Summary
 
 Phases 1–7 form a real pipeline, not a slide diagram. The intended

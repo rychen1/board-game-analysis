@@ -95,6 +95,14 @@ for descriptive questions only. They do not feed back into the vector.
 games only**, then applies the same transform to every game and
 situation vector (same schema and dim).
 
+This is intentional cross-level geometry (H4): situation vectors use the
+same coordinate system as game vectors, fit from **game-row** training
+statistics. A situation's `region__n_units` is always `1`; a game's is
+`n_situations`. After z-scoring, normalized situation coordinates are
+comparable across the corpus under the game-fit scale — they are **not**
+situation-native variance units. Use the canonical (un-normalized) view
+when within-game relative scale matters.
+
 Zero-variance training columns use `std = 1` and are listed on
 `zero_variance_columns`.
 
@@ -160,12 +168,24 @@ nearest_games / game_distance / pairwise_game_distances
 nearest_situations / situation_distance / pairwise_situation_distances
 ```
 
-Game entity ids are `game_id`. Situation entity ids are situation ids
-(`game:state`). A game vector is never silently used as a situation
-vector.
+Game entity ids are `game_id`. Situation entity ids are the full
+situation ids from Phase 1 (`{topology}@{digest}`). A game vector is
+never silently used as a situation vector.
+
+**Neighbor semantics differ by API:**
+
+| API | Reference set | Use |
+| --- | --- | --- |
+| `novelty_table` / `novelty_score` | Train games only | Structural kNN outlierness |
+| `nearest_games` / `nearest_situations` | Full corpus | Exploratory geometry |
+| `cluster_games` | Train-fit, all-game predict | Exploratory labels |
+
+`nearest_*` is not a holdout evaluation. Test entities can appear as
+neighbors. Prefer `novelty_table` when the question is distance to the
+training manifold.
 
 `within_game_dispersion` and `between_game_dispersion` describe region
-size versus corpus spread.
+size versus corpus spread (full corpus).
 
 ## 12. Artifact outputs
 
@@ -194,7 +214,8 @@ Existing `LocalStore` / `put_*` helpers. No second persistence system.
 A result is determined by:
 
 ```text
-source artifact / situation ids
+source PlaySituation inputs (or persisted Phase 1 example artifacts)
++ situation ids (topology + content digest)
 + schema version
 + train-only normalizer
 + optional projection
@@ -203,6 +224,12 @@ source artifact / situation ids
 + novelty k values
 + RunContext config hash
 ```
+
+`DesignSpaceManifest` records the recipe (schema, train/test ids,
+encoder dim, metric, clustering/novelty params, Phase 6 logical keys).
+It is sufficient to understand what a result means. Exact vector replay
+on a cold machine also requires the original situation inputs and code
+version pin — the manifest does not embed full Phase 1–5 artifact bytes.
 
 Aggregation sorts situations by id. Feature column order is the schema
 order.

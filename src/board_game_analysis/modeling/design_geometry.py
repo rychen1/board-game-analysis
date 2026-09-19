@@ -473,6 +473,7 @@ def nearest_games(
     view: ViewName = "normalized",
     metric: DistanceMetric | None = None,
 ) -> Neighborhood:
+    """kNN over the full corpus. Not train-filtered; see ``novelty_table``."""
     return _neighborhood(space, game_id, k, "game", view, metric)
 
 
@@ -484,6 +485,7 @@ def nearest_situations(
     view: ViewName = "normalized",
     metric: DistanceMetric | None = None,
 ) -> Neighborhood:
+    """kNN over the full corpus. Not train-filtered; see ``novelty_table``."""
     return _neighborhood(space, situation_id, k, "situation", view, metric)
 
 

@@ -97,6 +97,7 @@ class ObserverPath(_FrozenModel):
 class HigherOrderPerspective(_FrozenModel):
     entity_id: str
     game_id: str
+    situation_id: str
     state_id: str
     focal_observer_id: str
     target_observer_id: str
@@ -132,9 +133,9 @@ class HigherOrderRun(_FrozenModel):
 
 
 def higher_order_entity_id(
-    game_id: str, state_id: str, focal_id: str, target_id: str
+    situation_id: str, state_id: str, focal_id: str, target_id: str
 ) -> str:
-    return f"{game_id}/hop/{state_id}/{focal_id}>{target_id}"
+    return f"{situation_id}/hop/{state_id}/{focal_id}>{target_id}"
 
 
 def higher_order_perspective(
@@ -172,13 +173,17 @@ def higher_order_perspective(
         float(len(hidden_both)),
     )
     entity_id = higher_order_entity_id(
-        focal.game_id, focal.state_id, focal.observer_id, target.observer_id
+        focal.situation_id,
+        focal.state_id,
+        focal.observer_id,
+        target.observer_id,
     )
     if origin == "counterfactual":
         entity_id = f"{entity_id}/cf"
     return HigherOrderPerspective(
         entity_id=entity_id,
         game_id=focal.game_id,
+        situation_id=focal.situation_id,
         state_id=focal.state_id,
         focal_observer_id=focal.observer_id,
         target_observer_id=target.observer_id,
@@ -201,19 +206,21 @@ def higher_order_pairs(
 ) -> tuple[HigherOrderPerspective, ...]:
     """All ordered observer pairs that share a state."""
     by_key = {
-        (example.state_id, example.observer_id): example for example in observations
+        (example.situation_id, example.state_id, example.observer_id): example
+        for example in observations
     }
     index = {entity_id: i for i, entity_id in enumerate(z_obs.entity_ids)}
     pairs: list[HigherOrderPerspective] = []
-    seen_states: list[str] = []
+    seen_states: list[tuple[str, str]] = []
     for example in observations:
-        if example.state_id not in seen_states:
-            seen_states.append(example.state_id)
-    for state_id in seen_states:
+        bucket = (example.situation_id, example.state_id)
+        if bucket not in seen_states:
+            seen_states.append(bucket)
+    for situation_id, state_id in seen_states:
         observers = [
             example.observer_id
             for example in observations
-            if example.state_id == state_id
+            if example.situation_id == situation_id and example.state_id == state_id
         ]
         unique: list[str] = []
         for observer_id in observers:
@@ -223,8 +230,8 @@ def higher_order_pairs(
             for target_id in unique:
                 if focal_id == target_id:
                     continue
-                focal = by_key[(state_id, focal_id)]
-                target = by_key[(state_id, target_id)]
+                focal = by_key[(situation_id, state_id, focal_id)]
+                target = by_key[(situation_id, state_id, target_id)]
                 try:
                     z_focal = z_obs.vectors[index[focal.entity_id]]
                     z_target = z_obs.vectors[index[target.entity_id]]
@@ -243,18 +250,28 @@ def higher_order_pairs(
 def count_asymmetric_pairs(pairs: Sequence[HigherOrderPerspective]) -> int:
     """Count unordered observer pairs whose inverse perspective differs."""
     inverses = {
-        (pair.state_id, pair.focal_observer_id, pair.target_observer_id): pair
+        (
+            pair.situation_id,
+            pair.state_id,
+            pair.focal_observer_id,
+            pair.target_observer_id,
+        ): pair
         for pair in pairs
     }
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, str]] = set()
     count = 0
     for pair in pairs:
         left_id, right_id = sorted((pair.focal_observer_id, pair.target_observer_id))
-        bucket = (pair.state_id, left_id, right_id)
+        bucket = (pair.situation_id, pair.state_id, left_id, right_id)
         if bucket in seen:
             continue
         other = inverses.get(
-            (pair.state_id, pair.target_observer_id, pair.focal_observer_id)
+            (
+                pair.situation_id,
+                pair.state_id,
+                pair.target_observer_id,
+                pair.focal_observer_id,
+            )
         )
         if other is not None and other.vector != pair.vector:
             count += 1

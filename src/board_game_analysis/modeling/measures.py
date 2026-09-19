@@ -21,6 +21,17 @@ from board_game_analysis.modeling.examples import situation_id_for
 MEASURE_METHOD = "ontology-v0-naive"
 MEASURE_VERSION = "ontology-v0"
 
+
+def situation_id_from_measurement(measurement: DerivedMeasurement) -> str:
+    """Parse the situation id prefix embedded in ``DerivedMeasurement.id``."""
+    marker = f":{measurement.name}:"
+    index = measurement.id.find(marker)
+    if index < 0:
+        raise ValueError(
+            f"cannot parse situation_id from measurement id {measurement.id!r}"
+        )
+    return measurement.id[:index]
+
 SUPPORTED_METRIC_IDS: tuple[str, ...] = (
     "information_volume",
     "information_visibility",

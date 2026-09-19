@@ -17,7 +17,11 @@ from board_game_analysis.modeling.logical_keys import (
     EXAMPLES_LOGICAL_KEY,
     MEASUREMENTS_LOGICAL_KEY,
 )
-from board_game_analysis.modeling.measures import MeasureSpec, default_measure_spec
+from board_game_analysis.modeling.measures import (
+    MeasureSpec,
+    default_measure_spec,
+    situation_id_from_measurement,
+)
 
 MEASUREMENTS_MEDIA_TYPE = "application/json"
 EXAMPLES_MEDIA_TYPE = "application/json"
@@ -76,6 +80,7 @@ def observation_label_table(
     measurements: Sequence[DerivedMeasurement],
     *,
     entity_ids: Sequence[str],
+    situation_ids: Sequence[str],
     game_ids: Sequence[str],
     observation_ids: Sequence[str],
     observer_ids: Sequence[str],
@@ -89,6 +94,7 @@ def observation_label_table(
     """
     if not (
         len(entity_ids)
+        == len(situation_ids)
         == len(game_ids)
         == len(observation_ids)
         == len(observer_ids)
@@ -103,11 +109,12 @@ def observation_label_table(
         if not isinstance(measurement.value, (int, float)):
             continue
         value = float(measurement.value)
+        situation_id = situation_id_from_measurement(measurement)
         if measurement.scope == "observation":
-            key = (measurement.game_id, measurement.player_id, measurement.state_id)
+            key = (situation_id, measurement.player_id, measurement.state_id)
             obs_values.setdefault(key, {})[measurement.name] = value
         elif measurement.scope == "player":
-            key = (measurement.game_id, measurement.player_id, measurement.state_id)
+            key = (situation_id, measurement.player_id, measurement.state_id)
             player_values.setdefault(key, {})[measurement.name] = value
 
     columns = (
@@ -118,10 +125,10 @@ def observation_label_table(
         "available_decision_count",
     )
     values: list[tuple[Scalar, ...]] = []
-    aligned = zip(game_ids, observer_ids, state_ids, strict=True)
-    for game_id, observer_id, state_id in aligned:
-        obs = obs_values.get((game_id, observer_id, state_id), {})
-        player = player_values.get((game_id, observer_id, state_id), {})
+    aligned = zip(situation_ids, observer_ids, state_ids, strict=True)
+    for situation_id, observer_id, state_id in aligned:
+        obs = obs_values.get((situation_id, observer_id, state_id), {})
+        player = player_values.get((situation_id, observer_id, state_id), {})
         values.append(
             (
                 obs.get("information_volume"),
@@ -148,6 +155,7 @@ def labels_for_observations(
     return observation_label_table(
         measurements,
         entity_ids=[example.entity_id for example in examples],
+        situation_ids=[example.situation_id for example in examples],
         game_ids=[example.game_id for example in examples],
         observation_ids=[example.observation_id for example in examples],
         observer_ids=[example.observer_id for example in examples],

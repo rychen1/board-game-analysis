@@ -162,7 +162,7 @@ def test_perspective_intervention_changes_a_about_b() -> None:
     item_id = next(str(item["id"]) for item in bob.items if item.get("id"))
     intervention = hide_information(
         game_id=bob.game_id,
-        situation_id=f"{bob.game_id}:{S0}",
+        situation_id=bob.situation_id,
         source_state_id=S0,
         observer_id=BOB,
         item_id=item_id,
@@ -180,7 +180,8 @@ def test_perspective_intervention_changes_a_about_b() -> None:
     assert "/cf" in counterfactual.entity_id
     assert actual.vector != counterfactual.vector
     assert any(value != 0.0 for value in delta.vectors[0])
-    assert S1 not in actual.entity_id
+    assert f"/hop/{S0}/" in actual.entity_id
+    assert f"/hop/{S1}/" not in actual.entity_id
     blob = json.dumps(actual.to_mapping())
     assert "Hanabi" not in blob
 

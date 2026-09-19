@@ -673,8 +673,8 @@ def _higher_order_block_from_pairs(
     columns = _columns(schema, "higher_order")
     if len(examples.observations) < 2:
         return FamilyBlock(name="higher_order", present=False)
-    state_ids = {example.state_id for example in examples.states}
-    scoped = [pair for pair in pairs if pair.state_id in state_ids]
+    situation_id = examples.states[0].situation_id
+    scoped = [pair for pair in pairs if pair.situation_id == situation_id]
     if not scoped:
         return FamilyBlock(name="higher_order", present=False)
     n_asymmetric = count_asymmetric_pairs(scoped)

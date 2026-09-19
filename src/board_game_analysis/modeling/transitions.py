@@ -348,6 +348,7 @@ def _volume_delta(
         before = _scalar_at(
             measurements,
             "information_volume",
+            pair.situation_id,
             pair.game_id,
             observer_id,
             pair.from_state_id,
@@ -355,6 +356,7 @@ def _volume_delta(
         after = _scalar_at(
             measurements,
             "information_volume",
+            pair.situation_id,
             pair.game_id,
             observer_id,
             pair.to_state_id,
@@ -374,9 +376,19 @@ def _decision_delta(
     players = {item.player_id for item in measurements if item.player_id}
     for player_id in sorted(player for player in players if player is not None):
         before = _player_count(
-            measurements, pair.game_id, player_id, pair.from_state_id
+            measurements,
+            pair.situation_id,
+            pair.game_id,
+            player_id,
+            pair.from_state_id,
         )
-        after = _player_count(measurements, pair.game_id, player_id, pair.to_state_id)
+        after = _player_count(
+            measurements,
+            pair.situation_id,
+            pair.game_id,
+            player_id,
+            pair.to_state_id,
+        )
         if before is None or after is None:
             continue
         deltas.append(after - before)
@@ -388,6 +400,7 @@ def _decision_delta(
 def _scalar_at(
     measurements: Sequence[DerivedMeasurement],
     name: str,
+    situation_id: str,
     game_id: str,
     player_id: str,
     state_id: str,
@@ -395,6 +408,7 @@ def _scalar_at(
     for item in measurements:
         if (
             item.name == name
+            and item.id.startswith(f"{situation_id}:{name}:")
             and item.game_id == game_id
             and item.player_id == player_id
             and item.state_id == state_id
@@ -419,10 +433,16 @@ def _zero_change_table(table: FeatureTable) -> FeatureTable:
 
 def _player_count(
     measurements: Sequence[DerivedMeasurement],
+    situation_id: str,
     game_id: str,
     player_id: str,
     state_id: str,
 ) -> float | None:
     return _scalar_at(
-        measurements, "available_decision_count", game_id, player_id, state_id
+        measurements,
+        "available_decision_count",
+        situation_id,
+        game_id,
+        player_id,
+        state_id,
     )

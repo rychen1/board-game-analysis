@@ -328,11 +328,11 @@ def run_counterfactual_experiment(
     model.set_targets(targets)
     model.fit(contexts, conditions, [pair.entity_id for pair in train_pairs])
 
-    by_game = {situation.game.id: situation for situation in situations}
+    by_situation = {situation_id_for(situation): situation for situation in situations}
     transitions: list[CounterfactualTransition] = []
     extra_actions: list[RepresentationTable] = [z_actions]
     for pair in test_pairs:
-        situation = by_game[pair.game_id]
+        situation = by_situation[pair.situation_id]
         alt_ids = _alternative_action_ids(situation, pair)
         if alt_ids is None:
             continue

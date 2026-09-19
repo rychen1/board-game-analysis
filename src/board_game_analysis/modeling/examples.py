@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from ds_platform.hashing import payload_id
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import core_schema
 
@@ -339,7 +341,7 @@ def situation_id_for(situation: PlaySituation) -> str:
     return _situation_id(situation)
 
 
-def _situation_id(situation: PlaySituation) -> str:
+def _situation_topology_key(situation: PlaySituation) -> str:
     if not situation.states:
         return situation.game.id
     state_ids = ",".join(sorted(game_state.id for game_state in situation.states))
@@ -349,6 +351,75 @@ def _situation_id(situation: PlaySituation) -> str:
     if transition_ids:
         return f"{situation.game.id}:{state_ids}|{transition_ids}"
     return f"{situation.game.id}:{state_ids}"
+
+
+def _situation_content_record(situation: PlaySituation) -> dict[str, Any]:
+    """Canonical play content beyond shared local topology ids."""
+    return {
+        "actions": sorted(
+            [action.model_dump(mode="python") for action in situation.actions],
+            key=lambda item: item["id"],
+        ),
+        "decision_spaces": sorted(
+            [
+                space.model_dump(mode="python")
+                for space in situation.decision_spaces
+            ],
+            key=lambda item: item["id"],
+        ),
+        "information_spaces": sorted(
+            [
+                space.model_dump(mode="python")
+                for space in situation.information_spaces
+            ],
+            key=lambda item: item["id"],
+        ),
+        "observations": sorted(
+            [
+                observation.model_dump(mode="python")
+                for observation in situation.observations
+            ],
+            key=lambda item: item["id"],
+        ),
+        "states": sorted(
+            [
+                {
+                    "id": game_state.id,
+                    "turn_number": game_state.turn_number,
+                    "phase": game_state.phase,
+                    "active_player_id": game_state.active_player_id,
+                    "data": game_state.data,
+                }
+                for game_state in situation.states
+            ],
+            key=lambda item: str(item["id"]),
+        ),
+        "transitions": sorted(
+            [
+                {
+                    "id": transition.id,
+                    "from_state_id": transition.from_state_id,
+                    "to_state_id": transition.to_state_id,
+                    "action_ids": sorted(transition.action_ids),
+                }
+                for transition in situation.transitions
+            ],
+            key=lambda item: item["id"],
+        ),
+    }
+
+
+def _situation_content_digest(situation: PlaySituation) -> str:
+    record = _situation_content_record(situation)
+    encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return payload_id(encoded)[:8]
+
+
+def _situation_id(situation: PlaySituation) -> str:
+    topology = _situation_topology_key(situation)
+    if not situation.states:
+        return topology
+    return f"{topology}@{_situation_content_digest(situation)}"
 
 
 def _observer_ids(

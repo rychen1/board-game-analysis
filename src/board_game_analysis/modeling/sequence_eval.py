@@ -119,18 +119,21 @@ def sequence_scalar_table(
                 _mean_at(
                     measurements,
                     "information_volume",
+                    prefix.situation_id,
                     prefix.game_id,
                     prefix.target_state_id,
                 ),
                 _mean_at(
                     measurements,
                     "hidden_information",
+                    prefix.situation_id,
                     prefix.game_id,
                     prefix.target_state_id,
                 ),
                 _mean_at(
                     measurements,
                     "available_decision_count",
+                    prefix.situation_id,
                     prefix.game_id,
                     prefix.target_state_id,
                 ),
@@ -422,6 +425,7 @@ def _select_prefixes(
 def _mean_at(
     measurements: Sequence[DerivedMeasurement],
     name: str,
+    situation_id: str,
     game_id: str,
     state_id: str,
 ) -> float | None:
@@ -429,6 +433,7 @@ def _mean_at(
         float(item.value)
         for item in measurements
         if item.name == name
+        and item.id.startswith(f"{situation_id}:{name}:")
         and item.game_id == game_id
         and item.state_id == state_id
         and isinstance(item.value, (int, float))

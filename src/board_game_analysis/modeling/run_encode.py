@@ -16,7 +16,7 @@ from ds_platform.modeling.records import (
     representation_payload_bytes,
 )
 from ds_platform.modeling.representations import RepresentationTable
-from ds_platform.modeling.spec import EncodingSpec, spec_config_hash
+from ds_platform.modeling.spec import EncodingSpec, SequenceSpec, spec_config_hash
 from pydantic import BaseModel, ConfigDict
 
 from board_game_analysis.modeling.encoders import (
@@ -24,10 +24,20 @@ from board_game_analysis.modeling.encoders import (
     DEFAULT_DIM,
     ActionBagEmbedder,
     ObservationBagEmbedder,
+    PrefixSequenceEncoder,
     StateBagEmbedder,
 )
-from board_game_analysis.modeling.examples import ObservationExample, StateExample
+from board_game_analysis.modeling.encoders.sequence import (
+    SEQUENCE_FAMILY,
+    encode_trajectory_summaries,
+)
+from board_game_analysis.modeling.examples import (
+    ObservationExample,
+    SequenceExample,
+    StateExample,
+)
 from board_game_analysis.modeling.pairs import ActionExample
+from board_game_analysis.modeling.sequences import sequence_table_from_examples
 
 OBS_MODEL_LOGICAL_KEY = "bga:model/obs-embedder:v0"
 STATE_MODEL_LOGICAL_KEY = "bga:model/state-embedder:v0"
@@ -36,6 +46,8 @@ STATE_REPR_LOGICAL_KEY = "bga:repr/states:v0"
 PROBE_EVAL_LOGICAL_KEY = "bga:eval/obs-probes:v0"
 ACTION_MODEL_LOGICAL_KEY = "bga:model/action-embedder:v0"
 ACTION_REPR_LOGICAL_KEY = "bga:repr/actions:v0"
+SEQUENCE_MODEL_LOGICAL_KEY = "bga:model/sequence-encoder:v0"
+SEQUENCE_REPR_LOGICAL_KEY = "bga:repr/sequences:v0"
 
 
 class EncodingBundle(BaseModel):
@@ -90,6 +102,50 @@ def encode_states(
         repr_key=STATE_REPR_LOGICAL_KEY,
         model_key=STATE_MODEL_LOGICAL_KEY,
         created_at=created_at,
+    )
+
+
+def encode_sequences(
+    sequences: Sequence[SequenceExample],
+    z_states: RepresentationTable,
+    z_actions: RepresentationTable,
+    *,
+    store: Store,
+    run: RunContext,
+    created_at: datetime | None = None,
+) -> EncodingBundle:
+    encoder = PrefixSequenceEncoder()
+    table = encode_trajectory_summaries(sequences, z_states, z_actions)
+    spec = SequenceSpec(family=SEQUENCE_FAMILY, params={}, seed=0)
+    config_hash = spec_config_hash(spec)
+    run_with_hash = run.model_copy(update={"config_hash": config_hash})
+    encoder.fit(sequence_table_from_examples(sequences), z_states)
+    representation_payload_id, _repr_record_id = put_feature_dataset(
+        store,
+        representation_payload_bytes(table),
+        run=run_with_hash,
+        inputs=[],
+        media_type="application/json",
+        logical_key=SEQUENCE_REPR_LOGICAL_KEY,
+        created_at=created_at,
+    )
+    model_payload_id, _model_record_id = put_model_artifact(
+        store,
+        pickle.dumps(encoder),
+        run=run_with_hash,
+        inputs=[representation_payload_id],
+        media_type="application/octet-stream",
+        logical_key=SEQUENCE_MODEL_LOGICAL_KEY,
+        created_at=created_at,
+    )
+    return EncodingBundle(
+        table=table,
+        result=EncodingResult(
+            run_id=run_with_hash.run_id,
+            config_hash=config_hash,
+            representation_payload_id=representation_payload_id,
+            model_payload_id=model_payload_id,
+        ),
     )
 
 

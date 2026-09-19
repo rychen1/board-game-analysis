@@ -91,15 +91,39 @@ class PairExample(_FrozenModel):
         return action_set_entity_id(self.game_id, self.action_ids)
 
 
+class SequenceStep(_FrozenModel):
+    """One authored transition in a trajectory. IDs only; no GameState.data."""
+
+    index: int
+    from_state_id: str
+    to_state_id: str
+    action_ids: tuple[str, ...]
+    transition_id: str
+    pair_entity_id: str
+    observer_ids: tuple[str, ...] = ()
+    actor_id: str | None = None
+
+    def to_mapping(self) -> dict[str, Any]:
+        return self.model_dump(mode="python")
+
+
 class SequenceExample(_FrozenModel):
-    """Ordered states of one situation. Short fixtures are still one group."""
+    """Ordered states of one situation or one transition-linked trajectory.
+
+    Phase 1 fills ``event_ids`` from ``situation.states`` and leaves
+    ``steps`` empty. Phase 5 fills ``steps`` from authored transition
+    chains and sets ``event_ids`` to the chain's state ids.
+    """
 
     entity_id: str
     game_id: str
+    situation_id: str
     group_id: str
     event_ids: tuple[str, ...]
     positions: tuple[int, ...]
     actor_ids: tuple[str | None, ...]
+    steps: tuple[SequenceStep, ...] = ()
+    observer_ids: tuple[str, ...] = ()
 
     def to_mapping(self) -> dict[str, Any]:
         return self.model_dump(mode="python")
@@ -173,6 +197,7 @@ def examples_from_situation(situation: PlaySituation) -> ExampleBundle:
         SequenceExample(
             entity_id=sequence_entity_id(game_id),
             game_id=game_id,
+            situation_id=situation_id,
             group_id=game_id,
             event_ids=tuple(game_state.id for game_state in situation.states),
             positions=tuple(index for index, _state in enumerate(situation.states)),
@@ -241,6 +266,14 @@ def action_set_entity_id(game_id: str, action_ids: Sequence[str]) -> str:
 
 def sequence_entity_id(game_id: str) -> str:
     return f"{game_id}/seq"
+
+
+def trajectory_entity_id(game_id: str, first_transition_id: str) -> str:
+    return f"{game_id}/seq/{first_transition_id}"
+
+
+def situation_id_for(situation: PlaySituation) -> str:
+    return _situation_id(situation)
 
 
 def _situation_id(situation: PlaySituation) -> str:

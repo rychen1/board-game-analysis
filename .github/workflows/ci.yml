@@ -21,13 +21,13 @@ jobs:
         working-directory: board-game-analysis
     steps:
       - name: Checkout board-game-analysis
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: board-game-analysis
 
       # Local/dev uses the sibling path dep in pyproject.toml.
       - name: Checkout ds-platform
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: rychen1/ds-platform
           path: ds-platform
@@ -59,7 +59,7 @@ jobs:
       run:
         working-directory: board-game-analysis
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: board-game-analysis
 

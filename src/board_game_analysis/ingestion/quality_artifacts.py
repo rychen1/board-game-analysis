@@ -29,9 +29,7 @@ QUALITY_LOGICAL_KEY = "bga:quality/corpus:v0"
 
 def integrity_report_json_bytes(report: IntegrityReport) -> bytes:
     """Exact BGA quality payload. Not platform-canonical domain JSON."""
-    return (json.dumps(asdict(report), indent=2, sort_keys=True) + "\n").encode(
-        "utf-8"
-    )
+    return (json.dumps(asdict(report), indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
 def store_quality_report(

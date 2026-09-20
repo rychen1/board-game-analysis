@@ -99,6 +99,7 @@ _MODELING_ROOT = (
     Path(__file__).resolve().parents[2] / "src" / "board_game_analysis" / "modeling"
 )
 
+
 def _situation(
     *,
     game_id: str,
@@ -617,8 +618,7 @@ def test_train_game_novelty_is_invariant_to_test_game_location() -> None:
         dim=8,
     )
     left_scores = {
-        row.entity_id: row.structural_novelty
-        for row in novelty_table(left, ks=(1,))
+        row.entity_id: row.structural_novelty for row in novelty_table(left, ks=(1,))
     }
     right_scores = {
         row.entity_id: row.structural_novelty for row in novelty_table(right, ks=(1,))

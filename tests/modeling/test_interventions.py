@@ -317,9 +317,7 @@ def test_rollout_is_bounded_and_predicted() -> None:
         state_entity_id,
     )
 
-    start_id = state_entity_id(
-        sequence.situation_id, sequence.steps[0].from_state_id
-    )
+    start_id = state_entity_id(sequence.situation_id, sequence.steps[0].from_state_id)
     start = select_entities(z_states, [start_id])
     start = RepresentationTable(
         entity_ids=(sequence.group_id,),

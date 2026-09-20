@@ -116,8 +116,8 @@ first-seen game order → different train/test **game sets** (same seed).
 
 ```python
 spec = SplitSpec(method="holdout", seed=0, test_size=0.34)
-games = ["a","a","b","b","c","c"]
-fwd = split_groups(games, spec)[0].train_ids   # ('b', 'c')
+games = ["a", "a", "b", "b", "c", "c"]
+fwd = split_groups(games, spec)[0].train_ids  # ('b', 'c')
 rev = split_groups(list(reversed(games)), spec)[0].train_ids  # ('b', 'a')
 assert set(fwd) == set(rev)  # fails
 ```

@@ -373,9 +373,7 @@ def intervene_higher_order(
         target,
         z_focal,
         z_target,
-        source_payload_id=composite_source_payload_id(
-            [focal_payload, target_payload]
-        ),
+        source_payload_id=composite_source_payload_id([focal_payload, target_payload]),
         origin="observed",
     )
     applied: InterventionResult = apply_intervention(

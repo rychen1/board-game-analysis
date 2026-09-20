@@ -33,9 +33,7 @@ class _FrozenDict(dict[str, Any]):
     ) -> core_schema.CoreSchema:
         return core_schema.no_info_after_validator_function(
             cls._validate,
-            core_schema.dict_schema(
-                core_schema.str_schema(), core_schema.any_schema()
-            ),
+            core_schema.dict_schema(core_schema.str_schema(), core_schema.any_schema()),
         )
 
     @classmethod
@@ -361,17 +359,11 @@ def _situation_content_record(situation: PlaySituation) -> dict[str, Any]:
             key=lambda item: item["id"],
         ),
         "decision_spaces": sorted(
-            [
-                space.model_dump(mode="python")
-                for space in situation.decision_spaces
-            ],
+            [space.model_dump(mode="python") for space in situation.decision_spaces],
             key=lambda item: item["id"],
         ),
         "information_spaces": sorted(
-            [
-                space.model_dump(mode="python")
-                for space in situation.information_spaces
-            ],
+            [space.model_dump(mode="python") for space in situation.information_spaces],
             key=lambda item: item["id"],
         ),
         "observations": sorted(

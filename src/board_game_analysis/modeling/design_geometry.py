@@ -997,5 +997,3 @@ def _mean_knn_distance(
     if len(ranked) < k:
         raise ValueError("not enough reference neighbors")
     return sum(distance for distance, _ref_id in ranked[:k]) / float(k)
-
-

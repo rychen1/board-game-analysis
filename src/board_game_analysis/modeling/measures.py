@@ -32,6 +32,7 @@ def situation_id_from_measurement(measurement: DerivedMeasurement) -> str:
         )
     return measurement.id[:index]
 
+
 SUPPORTED_METRIC_IDS: tuple[str, ...] = (
     "information_volume",
     "information_visibility",

@@ -68,8 +68,7 @@ def scalar_predictions_from_representations(
     )
 
     predicted_rows: list[list[Scalar]] = [
-        [None] * len(test_scalar_true.columns)
-        for _ in test_scalar_true.entity_ids
+        [None] * len(test_scalar_true.columns) for _ in test_scalar_true.entity_ids
     ]
     for col_index, _column in enumerate(train_scalar_true.columns):
         train_labels = [row[col_index] for row in train_scalar_true.values]
